@@ -1,7 +1,5 @@
 import errno
-import math
 import os
-import random
 import shutil
 import threading
 import time
@@ -10,16 +8,12 @@ import socket
 import cv2
 import gradio as gr
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 from gradio import components
 from skimage import measure
 from skimage.morphology import skeletonize
-from numpy.ma import cos, sin
 from ultralytics import YOLO
 from sklearn.neighbors import KDTree
-import requests
-import subprocess
-import ipaddress
 import re
 
 import matplotlib.pyplot as plt
@@ -62,22 +56,30 @@ def copyFiles():
         new_img: 转移后的图片
     """
     directory = os.path.join(root_dir, "runs/segment")
-    folders = [os.path.join(directory, f) for f in os.listdir(directory) if os.path.isdir(os.path.join(directory, f))]
+    folders = [
+        os.path.join(directory, f)
+        for f in os.listdir(directory)
+        if os.path.isdir(os.path.join(directory, f))
+    ]
     folders.sort(key=os.path.getctime)
 
     newest_folder_path = folders[-1] if folders else None
     if not newest_folder_path:
         return []
 
-    image_files = (os.path.join(root, file) for root, _, files in os.walk(newest_folder_path) for file in files if
-                   file.endswith(('.jpg', '.jpeg', '.png', '.gif')))
+    image_files = (
+        os.path.join(root, file)
+        for root, _, files in os.walk(newest_folder_path)
+        for file in files
+        if file.endswith((".jpg", ".jpeg", ".png", ".gif"))
+    )
 
     new_images = []
     for file_path in image_files:
         try:
             current_time = datetime.now().strftime("%Y%m%d%H%M%S")
             new_file_name = f"{current_time}.jpg"
-            destination_path = os.path.join(root_dir, 'result', 'yolo', new_file_name)
+            destination_path = os.path.join(root_dir, "result", "yolo", new_file_name)
 
             if not is_file_in_use(file_path):
                 shutil.copy(file_path, destination_path)
@@ -145,7 +147,9 @@ def estimate_normal_for_pos(pos, points, n):
     # estimate normal vectors at a given point
     pts = np.copy(points)
     tree = KDTree(pts, leaf_size=2)
-    idx = tree.query(pos, k=n, return_distance=False, dualtree=False, breadth_first=False)
+    idx = tree.query(
+        pos, k=n, return_distance=False, dualtree=False, breadth_first=False
+    )
     # pts = np.concatenate((np.concatenate((pts[0].reshape(1,-1),pts),axis=0),pts[-1].reshape(1,-1)),axis=0)
     normals = []
     for i in range(0, pos.shape[0]):
@@ -173,7 +177,9 @@ def estimate_normals(points, n):
 
     pts = np.copy(points)
     tree = KDTree(pts, leaf_size=2)
-    idx = tree.query(pts, k=n, return_distance=False, dualtree=False, breadth_first=False)
+    idx = tree.query(
+        pts, k=n, return_distance=False, dualtree=False, breadth_first=False
+    )
     # pts = np.concatenate((np.concatenate((pts[0].reshape(1,-1),pts),axis=0),pts[-1].reshape(1,-1)),axis=0)
     normals = []
     for i in range(0, pts.shape[0]):
@@ -204,8 +210,12 @@ def get_crack_ctrlpts(centers, normals, bpoints, hband=5, vband=2, est_width=0):
             cpoints_loc = np.dot(tform, cpoints.T).T
             ci = cpoints_loc[i]
 
-            bl_ind = (bpoints_loc[:, 0] - (ci[0] - hband)) * (bpoints_loc[:, 0] - ci[0]) < 0
-            br_ind = (bpoints_loc[:, 0] - ci[0]) * (bpoints_loc[:, 0] - (ci[0] + hband)) <= 0
+            bl_ind = (bpoints_loc[:, 0] - (ci[0] - hband)) * (
+                bpoints_loc[:, 0] - ci[0]
+            ) < 0
+            br_ind = (bpoints_loc[:, 0] - ci[0]) * (
+                bpoints_loc[:, 0] - (ci[0] + hband)
+            ) <= 0
             bl = bpoints_loc[bl_ind]  # 左侧边缘点
             br = bpoints_loc[br_ind]  # 右侧边缘点
 
@@ -305,7 +315,7 @@ def load_model(load_model_name, load_model_path=None):
     """
     global model
     if load_model_path is None and root_dir is not None:
-        load_model_path = os.path.join(root_dir, 'models', load_model_name)
+        load_model_path = os.path.join(root_dir, "models", load_model_name)
         model = YOLO(load_model_path)
         print("模型加载完毕")
     elif load_model_path is not None:
@@ -339,15 +349,22 @@ def auto_generate():
     print("线程启动")
     time.sleep(1)
     stop_event.clear()
-    cap = cv2.VideoCapture("http://admin:admin@192.168.14.97:4747/video")
-    while not stop_event.is_set():
+    # 打开摄像头
+    cap = cv2.VideoCapture(0)
+    # 调整图像大小
+    width = 800
+    height = 600
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
+    while not stop_event.is_set():
         hx, img = cap.read()
         img = np.array(img)
 
         # 获取原始图片的宽度和高度
         height, width, _ = img.shape
         img_org = img.copy()
+        print("img_org: ", img_org.shape)
 
         print("width: ", width)
         print("height: ", height)
@@ -357,6 +374,7 @@ def auto_generate():
         if width * height > 1920 * 1080:
             img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
 
+        print("img_org: ", img_org.shape)
         # 将图片转换为PIL图像对象
         img_pil = Image.fromarray(np.uint8(img))
 
@@ -376,13 +394,24 @@ def auto_generate():
 
         copyFiles()
 
-        pro_img_list = process_images(img, auto_noise, auto_threshold, auto_offset, auto_simple_line, auto_wide)
+        pro_img_list = process_images(
+            img, auto_noise, auto_threshold, auto_offset, auto_simple_line, auto_wide
+        )
         print("预处理完成")
 
-        get_finish_img(img_org, auto_threshold, auto_offset, auto_noise, auto_high_precision, auto_simple_line,
-                       auto_wide)
+        get_finish_img(
+            img_org,
+            auto_threshold,
+            auto_offset,
+            auto_noise,
+            auto_high_precision,
+            auto_simple_line,
+            auto_wide,
+        )
         print("计算完成")
         time.sleep(9)
+
+    print("线程已关闭")
 
 
 def output_img():
@@ -399,24 +428,19 @@ def auto_start():
 def auto_stop():
     print("停止自动检测")
     stop_event.set()
-    # thread.join()
+    thread.join()
 
 
-def file_upload(model_name, conf, threshold, offset, noise_size, wide, simple_line, img=None):
+def file_upload(model_name, conf, img=None):
     """
     传递处理后图片
     Args:
         model_name: 模型名称
         img: 待处理图片
         conf: 置信度
-        threshold: 卷积核大小
-        offset: 偏移量
-        noise_size: 噪点过滤阈值
-        wide: 宽度计算阈值
-        simple_line: 简单线段是否启用
 
     Returns:
-        img_original: 处理后的图片
+        new_images: 转移后的图片
     """
     global model, pro_img_list
 
@@ -426,12 +450,6 @@ def file_upload(model_name, conf, threshold, offset, noise_size, wide, simple_li
     # 计算缩放后的宽度和高度
     if width * height > 512 * 512:
         img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
-
-    # new_width = int(width * 0.5)
-    # new_height = int(height * 0.5)
-    #
-    # # 缩放图片
-    # img = cv2.resize(img, (new_width, new_height))
 
     # 将图片转换为PIL图像对象
     img_pil = Image.fromarray(np.uint8(img))
@@ -451,115 +469,89 @@ def file_upload(model_name, conf, threshold, offset, noise_size, wide, simple_li
     model.predict(img_pil, save=True, save_txt=True, imgsz=640, conf=conf)
 
     new_images = copyFiles()
-
-    # gray_image = pro_img_list[0]
-    # blurred_image = pro_img_list[1]
-    # binarization_img = pro_img_list[2]
-    # conversion_img = pro_img_list[3]
-    # inverted_img = pro_img_list[4]
-    #
-    # blobs = np.array(inverted_img.copy())
-    # blobs = np.where(blobs == 255, 1, blobs)
-    # iw, ih = blobs.shape
-    # skeleton = skeletonize(blobs)
-    #
-    # if simple_line:
-    #
-    #     x, y = np.where(skeleton > 0)
-    #     centers = np.hstack((x.reshape(-1, 1), y.reshape(-1, 1)))
-    #
-    #     normals = estimate_normals(centers, 9)  # 用于估计法向量的KNN
-    #
-    #     # 搜索裂纹轮廓
-    #     contours = measure.find_contours(blobs, 0.8)
-    #
-    #     bl = contours[0]
-    #     br = contours[1]
-    #
-    #     bpoints = np.vstack((bl, br))
-    #
-    #     bpixel = np.zeros((iw, ih, 3), dtype=np.uint8)
-    #     bpoints = bpoints.astype(np.int64)
-    #     bpixel[bpoints[:, 0], bpoints[:, 1], 0] = 255
-    #
-    #     skeleton_pixel = np.zeros((iw, ih, 3), dtype=np.uint8)
-    #     skeleton_pixel[skeleton, 1] = 255
-    #
-    #     bpixel_and_skeleton = np.copy(bpixel)
-    #     bpixel_and_skeleton[skeleton, 1] = 255
-    #
-    #     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    #
-    #     ax.imshow(bpixel_and_skeleton)
-    #
-    #     interps, widths = get_crack_ctrlpts(centers, normals, bpoints, hband=2, vband=2, est_width=wide)
-    #
-    #     interps_show = interps[np.random.choice(interps.shape[0], 240, replace=True), :]  # 由于太多，这里随机采样240个测量位置，进行显示
-    #
-    #     for i in range(interps_show.shape[0]):
-    #         ax.plot([interps_show[i, 1], interps_show[i, 3]], [interps_show[i, 0], interps_show[i, 2]], c='c', ls='-',
-    #                 lw=1, marker='o', ms=2, mec='c', mfc='c')
-    #
-    #     fig.tight_layout()
-    #
-    #     # 保存图片
-    #     plt.savefig("C:/Users/86188/Desktop/Bridge/ultralytics-main/Bridge-Segment/result/output.png")
-    #
-    #     # 读取保存的图片，并将其转换为ndarray类型
-    #     output_image = Image.open("C:/Users/86188/Desktop/Bridge/ultralytics-main/Bridge-Segment/result/output.png")
-    #     output_image = np.array(output_image)
-    #
-    #     gray_List = [gray_image, blurred_image, binarization_img, conversion_img, inverted_img, output_image,
-    #                  skeleton_pixel, bpixel_and_skeleton]
-    # else:
-    #     gray_List = [gray_image, blurred_image, binarization_img, conversion_img, inverted_img]
     return new_images
 
 
-def process_images(pen_pro_img, noise_size, threshold, offset, easy_mode_open, width_threshold):
+def process_images(
+    pen_pro_img, noise_size, threshold, offset, easy_mode_open, width_threshold
+):
     global pro_img_list
-    # 获取原始图片的宽度和高度
+
+    # 获取原始图像的高度和宽度
     height, width, _ = pen_pro_img.shape
 
-    # 缩放图片
-    pen_pro_img = cv2.resize(pen_pro_img, (int(width * 0.5), int(height * 0.5)))
-    # 将彩色图像转换为灰度图像
-    gray_image = cv2.cvtColor(pen_pro_img, cv2.COLOR_BGR2GRAY)
+    # 将图像大小调整为原始大小的一半
+    if width * height > 1920 * 1080:
+        min_img = cv2.resize(pen_pro_img, (int(width * 0.5), int(height * 0.5)))
+    else:
+        min_img = pen_pro_img
 
-    # 设置高斯滤波的参数
-    kernel_size = 11  # 高斯核的大小，必须是正奇数
+    # 将图像转换为灰度
+    gray_image = cv2.cvtColor(min_img, cv2.COLOR_BGR2GRAY)
+
+    # 将高斯模糊应用于灰度图像
+    kernel_size = 11  # 高斯核的大小
     sigma = 2  # 高斯核的标准差
     blurred_image = cv2.GaussianBlur(gray_image, (kernel_size, kernel_size), sigma)
 
-    # 使用自适应平均阈值进行二值化
-    binarization_img = cv2.adaptiveThreshold(blurred_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY,
-                                             threshold, offset)
+    # 对模糊图像应用自适应阈值处理
+    adaptive_threshold = cv2.adaptiveThreshold(
+        blurred_image,
+        255,
+        cv2.ADAPTIVE_THRESH_MEAN_C,
+        cv2.THRESH_BINARY,
+        threshold,
+        offset,
+    )
 
-    conversion_img = binarization_img.copy()
+    # 将阈值图像转换为二值化图像
+    binary_image = adaptive_threshold.copy()
 
     # 噪点过滤(将小于一定大小的黑色区域转换为白色)
-    contours, hierarchy = cv2.findContours(conversion_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(
+        binary_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+    )
     for cnt in contours:
         if cv2.contourArea(cnt) < noise_size:
             x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(conversion_img, (x, y), (x + w, y + h), (255, 255, 255), -1)
+            cv2.rectangle(binary_image, (x, y), (x + w, y + h), (255, 255, 255), -1)
 
     # 将二值图像转换成反二值图像
-    inverted_img = ImageOps.invert(Image.fromarray(conversion_img.copy()))
+    inverted_image = cv2.bitwise_not(binary_image)
+
+    # 如果easy_mode_open为True，则执行其他处理
     if easy_mode_open:
-        easy_img = easy_mode2(inverted_img, pen_pro_img, width_threshold)
-        pro_img_list = [gray_image, blurred_image, binarization_img, conversion_img, inverted_img, easy_img]
+        easy_image = easy_mode2(inverted_image, min_img, width_threshold)
+        pro_img_list = [
+            gray_image,
+            blurred_image,
+            adaptive_threshold,
+            binary_image,
+            inverted_image,
+            easy_image,
+        ]
     else:
-        pro_img_list = [gray_image, blurred_image, binarization_img, conversion_img, inverted_img]
+        pro_img_list = [
+            gray_image,
+            blurred_image,
+            adaptive_threshold,
+            binary_image,
+            inverted_image,
+        ]
+
     return pro_img_list
 
 
-# 3. 找出这条垂直线与轮廓的交点。
+# 找出这条垂直线与轮廓的交点。
 def find_intersection(point, direction, contours_img):
     p1 = point - 1000 * direction
     p2 = point + 1000 * direction
-    line = cv2.line(np.zeros_like(skeleton), tuple(p1.astype(int)), tuple(p2.astype(int)), 1, 1)
-    intersections = cv2.findContours(np.asarray(line & contours_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    line = cv2.line(
+        np.zeros_like(skeleton), tuple(p1.astype(int)), tuple(p2.astype(int)), 1, 1
+    )
+    intersections = cv2.findContours(
+        np.asarray(line & contours_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
     if intersections:
         return intersections[0][0][0], intersections[-1][0][0]
     return None, None
@@ -596,10 +588,6 @@ def easy_mode(inverted_img, width_threshold):
     bpoints = bpoints.astype(np.int64)
     bpixel[bpoints[:, 0], bpoints[:, 1], 0] = 255
 
-    # skeleton_pixel = np.where(binarization_image_np == False, 0, 255)
-    # skeleton_pixel = np.zeros((iw, ih, 3), dtype=np.uint8)
-    # skeleton_pixel[skeleton, 1] = 255
-
     bpixel_and_skeleton = np.copy(bpixel)
     bpixel_and_skeleton[skeleton, 1] = 255
 
@@ -607,20 +595,33 @@ def easy_mode(inverted_img, width_threshold):
 
     ax.imshow(bpixel_and_skeleton)
 
-    interps, widths = get_crack_ctrlpts(centers, normals, bpoints, hband=2, vband=2, est_width=width_threshold)
+    interps, widths = get_crack_ctrlpts(
+        centers, normals, bpoints, hband=2, vband=2, est_width=width_threshold
+    )
 
-    interps_show = interps[np.random.choice(interps.shape[0], 240, replace=True), :]  # 由于太多，这里随机采样240个测量位置，进行显示
+    interps_show = interps[
+        np.random.choice(interps.shape[0], 240, replace=True), :
+    ]  # 由于太多，这里随机采样240个测量位置，进行显示
 
     for i in range(interps_show.shape[0]):
-        ax.plot([interps_show[i, 1], interps_show[i, 3]], [interps_show[i, 0], interps_show[i, 2]], c='c', ls='-',
-                lw=1, marker='o', ms=2, mec='c', mfc='c')
+        ax.plot(
+            [interps_show[i, 1], interps_show[i, 3]],
+            [interps_show[i, 0], interps_show[i, 2]],
+            c="c",
+            ls="-",
+            lw=1,
+            marker="o",
+            ms=2,
+            mec="c",
+            mfc="c",
+        )
 
     fig.tight_layout()
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
     new_file_name = f"{current_time}.jpg"
 
     # 保存图片
-    easy_path = os.path.join(root_dir, 'result', 'easyMode', new_file_name)
+    easy_path = os.path.join(root_dir, "result", "easyMode", new_file_name)
     plt.savefig(easy_path)
 
     # 读取保存的图片，并将其转换为ndarray类型
@@ -640,8 +641,12 @@ def line_plane_intersection(line1, line2, point, normal):
     # 计算平面法向量和两条线段的叉积
     cross_product = np.cross(line1_direction, plane_normal)
     # 计算交点
-    t1 = np.dot(plane_point - line1, cross_product) / np.dot(line1_direction, cross_product)
-    t2 = np.dot(plane_point - line2, cross_product) / np.dot(line2_direction, cross_product)
+    t1 = np.dot(plane_point - line1, cross_product) / np.dot(
+        line1_direction, cross_product
+    )
+    t2 = np.dot(plane_point - line2, cross_product) / np.dot(
+        line2_direction, cross_product
+    )
     intersection_point = line1 + t1 * line1_direction
     return intersection_point
 
@@ -649,7 +654,9 @@ def line_plane_intersection(line1, line2, point, normal):
 def easy_mode2(inverted_img, org_img, width_threshold):
     # 查找轮廓
     contours_img = inverted_img.copy()
-    contours, _ = cv2.findContours(np.asarray(contours_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        np.asarray(contours_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
     # 创建一个全零的数组，与原图像具有相同的尺寸
     output_image = np.zeros_like(inverted_img)
@@ -680,11 +687,15 @@ def easy_mode2(inverted_img, org_img, width_threshold):
             contour = np.array(contour)
             if cv2.pointPolygonTest(contour, point, False) > 0:
                 # 计算交点
-                intersection_point = line_plane_intersection(contour[0], contour[-1], point, normal)
+                intersection_point = line_plane_intersection(
+                    contour[0], contour[-1], point, normal
+                )
                 break
         if intersection_point is not None:
             # 绘制线段
-            cv2.line(skeleton_pixel, tuple(point), tuple(intersection_point), (0, 255, 0), 2)
+            cv2.line(
+                skeleton_pixel, tuple(point), tuple(intersection_point), (0, 255, 0), 2
+            )
 
     # x_points = points[1][indices]
     # y_points = points[0][indices]
@@ -713,7 +724,9 @@ def easy_mode2(inverted_img, org_img, width_threshold):
     return skeleton_pixel
 
 
-def get_finish_img(img, threshold, offset, noise_size, high_precision, easy_mode_open, width_threshold):
+def get_finish_img(
+    img, threshold, offset, noise_size, high_precision, easy_mode_open, width_threshold
+):
     """
     获取计算裂缝宽度后的图片
     Args:
@@ -731,6 +744,8 @@ def get_finish_img(img, threshold, offset, noise_size, high_precision, easy_mode
     global finish_data, pro_img_list
     # 获取原始图片的宽度和高度
     height, width, _ = img.shape
+    print("height: ", height)
+    print("width: ", width)
     # 缩放图片
     if width * height > 1920 * 1080:
         min_img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
@@ -739,10 +754,18 @@ def get_finish_img(img, threshold, offset, noise_size, high_precision, easy_mode
 
     if len(pro_img_list) != 0:
         inverted_img = pro_img_list[4]
+        print("使用缓存")
     else:
-        inverted_img = process_images(img, noise_size, threshold, offset, easy_mode_open, width_threshold)[4]
+        inverted_img = process_images(
+            img, noise_size, threshold, offset, easy_mode_open, width_threshold
+        )[4]
+        print("未使用缓存")
 
-    finish_img, all_data_list, skeleton_pixel = Mc.max_circle(inverted_img, min_img, high_precision)
+    print("img1: ", inverted_img.shape)
+    print("img2: ", img.shape)
+    finish_img, all_data_list, skeleton_pixel = Mc.max_circle(
+        inverted_img, min_img, high_precision
+    )
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -750,8 +773,10 @@ def get_finish_img(img, threshold, offset, noise_size, high_precision, easy_mode
     # 构建新的文件名
     new_file_name = f"{current_time}.jpg"
 
-    cv2.imwrite(os.path.join(root_dir, 'result', 'inCircle', new_file_name),
-                cv2.cvtColor(finish_img, cv2.COLOR_BGR2RGB))
+    cv2.imwrite(
+        os.path.join(root_dir, "result", "inCircle", new_file_name),
+        cv2.cvtColor(finish_img, cv2.COLOR_BGR2RGB),
+    )
 
     finish_data = list(map(list, zip(*[all_data_list[0]])))
     if len(list(map(list, zip(*[all_data_list[1]])))) > 0:
@@ -759,14 +784,25 @@ def get_finish_img(img, threshold, offset, noise_size, high_precision, easy_mode
     else:
         other_data = [["无其余裂缝数据"]]
 
-    width_data_list = [all_data_list[2][0], all_data_list[3][0], other_data, finish_data]
+    width_data_list = [
+        all_data_list[2][0],
+        all_data_list[3][0],
+        other_data,
+        finish_data,
+    ]
     Cf.width_json(current_time, width_data_list)
 
     random_data = update_page("初始化")
 
     pro_img_list = []
 
-    return [finish_img, skeleton_pixel], all_data_list[2][0], all_data_list[3][0], other_data, random_data
+    return (
+        [finish_img, skeleton_pixel],
+        all_data_list[2][0],
+        all_data_list[3][0],
+        other_data,
+        random_data,
+    )
 
 
 def update_page(increase):
@@ -845,7 +881,7 @@ def update_img_list(increase):
 
     def refresh_page():
         global img_page_list
-        img_page_list = Gal.initialization_img_list('yolo')
+        img_page_list = Gal.initialization_img_list("yolo")
         return pageNum
 
     actions = {
@@ -855,7 +891,7 @@ def update_img_list(increase):
         "尾页": last_page,
         "跳转": current_page,
         "上一页": prev_page,
-        "下一页": next_gallery_page
+        "下一页": next_gallery_page,
     }
 
     pageNum = actions[increase]()
@@ -903,7 +939,9 @@ def on_page_num_change(event, items_per_page=20):
     global pageNum
     pageNum = max(int(event), 0)  # 保证pageNum非负
 
-    start, end, pageNum = get_page_boundaries(pageNum, items_per_page, len(img_page_list))
+    start, end, pageNum = get_page_boundaries(
+        pageNum, items_per_page, len(img_page_list)
+    )
 
     return img_page_list[start:end], pageNum, delete.update(visible=False)
 
@@ -939,34 +977,48 @@ def delete_img(img_name_delete, file_path):
     global img_page_list
 
     # 使用列表推导来过滤掉目标字符串
-    filtered_file_paths = [path for path in img_page_list if not path.endswith(img_name_delete)]
+    filtered_file_paths = [
+        path for path in img_page_list if not path.endswith(img_name_delete)
+    ]
 
     start = pageNum * 20
     end = start + 20
     img_page_list = filtered_file_paths
 
-    os.remove(os.path.join(file_path, 'yolo', img_name_delete))
+    os.remove(os.path.join(file_path, "yolo", img_name_delete))
     return img_page_list[start:end]
 
 
 def is_private_ip(ip):
     # 私网IP地址范围
     private_ranges = [
-        ('10.0.0.0', '10.255.255.255'),
-        ('172.16.0.0', '172.31.255.255'),
-        ('192.168.0.0', '192.168.255.255')
+        ("10.0.0.0", "10.255.255.255"),
+        ("172.16.0.0", "172.31.255.255"),
+        ("192.168.0.0", "192.168.255.255"),
     ]
 
     # 将IP地址转换为整数
-    ip_int = int(ip.split('.')[0]) << 24 | int(ip.split('.')[1]) << 16 | int(ip.split('.')[2]) << 8 | int(
-        ip.split('.')[3])
+    ip_int = (
+        int(ip.split(".")[0]) << 24
+        | int(ip.split(".")[1]) << 16
+        | int(ip.split(".")[2]) << 8
+        | int(ip.split(".")[3])
+    )
 
     # 判断IP地址是否在私网IP地址范围内
     for start, end in private_ranges:
-        start_int = int(start.split('.')[0]) << 24 | int(start.split('.')[1]) << 16 | int(
-            start.split('.')[2]) << 8 | int(start.split('.')[3])
-        end_int = int(end.split('.')[0]) << 24 | int(end.split('.')[1]) << 16 | int(end.split('.')[2]) << 8 | int(
-            end.split('.')[3])
+        start_int = (
+            int(start.split(".")[0]) << 24
+            | int(start.split(".")[1]) << 16
+            | int(start.split(".")[2]) << 8
+            | int(start.split(".")[3])
+        )
+        end_int = (
+            int(end.split(".")[0]) << 24
+            | int(end.split(".")[1]) << 16
+            | int(end.split(".")[2]) << 8
+            | int(end.split(".")[3])
+        )
         if start_int <= ip_int <= end_int:
             return False
     print("IP网段位于公网网段内，进行启用...")
@@ -976,9 +1028,8 @@ def is_private_ip(ip):
 def has_public_ip(port):
     address = socket.getaddrinfo(socket.gethostname(), None)
     print("检索到本机IP，提供访问地址")
-    pattern = r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
     for addr in address:
-
         match = re.search(pattern, addr[4][0])
         if match:
             if is_private_ip(match.group(1)):
@@ -989,47 +1040,59 @@ def has_public_ip(port):
     return False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     Cf.inspect_config_file()
 
     # 获取当前脚本文件的根目录
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    models_path = os.path.join(root_dir, 'models')
+    models_path = os.path.join(root_dir, "models")
     page = 0
     pageNum = 0
     auto = False
-    model = None
-    img_name = None
-    gray_img_total = None
+    model, img_name, gray_img_total = None, None, None
     finish_data = []
     gallery_list = []
     pro_img_list = []
     stop_event = threading.Event()
     stop_event.set()
     # 自动监测模式全局变量
-    auto_conf, auto_threshold, auto_offset, auto_noise, auto_high_precision, auto_simple_line, auto_wide = 0.6, 161, 31, 300, False, False, 60
+    (
+        auto_conf,
+        auto_threshold,
+        auto_offset,
+        auto_noise,
+        auto_high_precision,
+        auto_simple_line,
+        auto_wide,
+    ) = (0.6, 161, 31, 300, False, False, 60)
 
     models_check, model_path = Cf.check_models()
     model_name = os.path.basename(model_path)
     if models_check:
         load_model(model_name, model_path)
     with gr.Blocks() as demo:
-        folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
-        result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result')
+        folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+        result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
         # 获取文件夹中的文件列表
         file_list = os.listdir(folder_path)
 
         # 初始化图片列表
-        img_page_list = Gal.initialization_img_list('yolo')
+        img_page_list = Gal.initialization_img_list("yolo")
         img_list = img_page_list[0:20]
 
         in_circle_list = Iw.initialization()
 
         # 创建一个文件组
-        options = [file for file in file_list if os.path.isfile(os.path.join(folder_path, file))]
+        options = [
+            file
+            for file in file_list
+            if os.path.isfile(os.path.join(folder_path, file))
+        ]
 
         if models_check:
-            model_input = components.Dropdown(choices=options, value=model_name, label="选择模型文件")
+            model_input = components.Dropdown(
+                choices=options, value=model_name, label="选择模型文件"
+            )
         else:
             # 创建一个文件输入组件
             model_input = components.Dropdown(choices=options, label="选择模型文件")
@@ -1051,25 +1114,14 @@ if __name__ == '__main__':
             # 垂直排列是默认情况，不加也没关系
             with gr.Row():
                 img_input = components.Image(label="选择图片文件")
-                gallery = gr.Gallery(
-                    label="推理结果",
-                    columns=1,
-                    rows=1,
-                    preview=True
-                )
+                gallery = gr.Gallery(label="推理结果", columns=1, rows=1, preview=True)
 
                 filtered_image = gr.Gallery(
-                    label="高斯模糊",
-                    columns=1,
-                    rows=1,
-                    preview=True
+                    label="高斯模糊", columns=1, rows=1, preview=True
                 )
 
                 wide_gallery = gr.Gallery(
-                    label="裂缝宽度结果",
-                    columns=1,
-                    rows=1,
-                    preview=True
+                    label="裂缝宽度结果", columns=1, rows=1, preview=True
                 )
             with gr.Accordion(label="裂缝宽度计算结果", open=False):
                 with gr.Row():
@@ -1077,58 +1129,86 @@ if __name__ == '__main__':
                     avg_wide_label = gr.Textbox(label="平均宽度", value="0")
 
                 with gr.Row():
-                    second_label = gr.Dataframe(headers=["次要裂缝最大宽度"], datatype=["number"], max_rows=5,
-                                                overflow_row_behaviour="paginate")
+                    second_label = gr.Dataframe(
+                        headers=["次要裂缝最大宽度"],
+                        datatype=["number"],
+                        max_rows=5,
+                        overflow_row_behaviour="paginate",
+                    )
                     with gr.Column():
-                        random_label = gr.Dataframe(headers=["随机取样宽度"], datatype=["number"])
+                        random_label = gr.Dataframe(
+                            headers=["随机取样宽度"], datatype=["number"]
+                        )
                         with gr.Row():
                             before_page = "上一页"
                             next_page = "下一页"
                             before_data = gr.Button(before_page)
                             next_data = gr.Button(next_page)
 
-            before_data.click(fn=lambda: update_page(before_page), outputs=[random_label])
+            before_data.click(
+                fn=lambda: update_page(before_page), outputs=[random_label]
+            )
             next_data.click(fn=lambda: update_page(next_page), outputs=[random_label])
 
             greet_btn = gr.Button("提交")
 
-            greet_btn.click(fn=file_upload, inputs=[
-                model_input,
-                conf,
-                threshold,
-                offset,
-                noise,
-                wide,
-                simple_line,
-                img_input], outputs=[gallery])
+            greet_btn.click(
+                fn=file_upload,
+                inputs=[
+                    model_input,
+                    conf,
+                    img_input,
+                ],
+                outputs=[gallery],
+            )
 
-            greet_btn.click(fn=process_images, inputs=[img_input, noise, threshold, offset, simple_line, wide],
-                            outputs=[filtered_image])
+            greet_btn.click(
+                fn=process_images,
+                inputs=[img_input, noise, threshold, offset, simple_line, wide],
+                outputs=[filtered_image],
+            )
 
-            greet_btn.click(fn=get_finish_img, inputs=[
-                img_input,
-                threshold,
-                offset,
-                noise,
-                high_precision,
-                simple_line,
-                wide], outputs=[wide_gallery, max_wide_label, avg_wide_label, second_label, random_label])
+            greet_btn.click(
+                fn=get_finish_img,
+                inputs=[
+                    img_input,
+                    threshold,
+                    offset,
+                    noise,
+                    high_precision,
+                    simple_line,
+                    wide,
+                ],
+                outputs=[
+                    wide_gallery,
+                    max_wide_label,
+                    avg_wide_label,
+                    second_label,
+                    random_label,
+                ],
+            )
 
         with gr.Tab("自监控模式"):
             with gr.Row():
                 run_button = gr.Button("启动")
                 stop_button = gr.Button("停止")
             with gr.Row():
-                out_img = gr.Gallery(
-                    label="预处理图片",
-                    columns=1,
-                    rows=1,
-                    preview=True
-                )
+                out_img = gr.Gallery(label="预处理图片", columns=1, rows=1, preview=True)
 
             thread = threading.Thread(target=auto_generate)
 
-            run_button.click(fn=get_args, inputs=[conf, threshold, offset, noise, high_precision, simple_line, wide])
+            run_button.click(
+                fn=get_args,
+                inputs=[
+                    conf,
+                    threshold,
+                    offset,
+                    noise,
+                    high_precision,
+                    simple_line,
+                    wide,
+                ],
+            )
             run_button.click(fn=thread.start)
             run_button.click(fn=output_img, outputs=[out_img])
             stop_button.click(fn=auto_stop)
@@ -1142,25 +1222,51 @@ if __name__ == '__main__':
                         beforeButton = gr.Button("上一页")
                         getPageNum = gr.Number(label="页码", interactive=True)
                         refresh = gr.Button("🔄")
-                        nextButton = gr.Button("下一页", )
+                        nextButton = gr.Button(
+                            "下一页",
+                        )
                         end_page = gr.Button("尾页")
-                    inference_results = gr.Gallery(label="推理结果", value=img_list, columns=5, object_fit='contain')
+                    inference_results = gr.Gallery(
+                        label="推理结果", value=img_list, columns=5, object_fit="contain"
+                    )
                     delete = gr.Button("删除", visible=False)
                 with gr.Tab("宽度计算"):
                     with gr.Row():
                         block2 = Iw.inCircleWide()
 
-            first_page.click(fn=lambda: update_img_list("首页"), outputs=[inference_results, getPageNum, delete])
-            beforeButton.click(fn=lambda: update_img_list("上一页"), outputs=[inference_results, getPageNum, delete])
-            nextButton.click(fn=lambda: update_img_list("下一页"), outputs=[inference_results, getPageNum, delete])
-            end_page.click(fn=lambda: update_img_list("尾页"), outputs=[inference_results, getPageNum, delete])
-            refresh.click(fn=lambda: update_img_list("刷新"), outputs=[inference_results, getPageNum, delete])
-            getPageNum.submit(fn=on_page_num_change, inputs=[getPageNum],
-                              outputs=[inference_results, getPageNum, delete])
+            first_page.click(
+                fn=lambda: update_img_list("首页"),
+                outputs=[inference_results, getPageNum, delete],
+            )
+            beforeButton.click(
+                fn=lambda: update_img_list("上一页"),
+                outputs=[inference_results, getPageNum, delete],
+            )
+            nextButton.click(
+                fn=lambda: update_img_list("下一页"),
+                outputs=[inference_results, getPageNum, delete],
+            )
+            end_page.click(
+                fn=lambda: update_img_list("尾页"),
+                outputs=[inference_results, getPageNum, delete],
+            )
+            refresh.click(
+                fn=lambda: update_img_list("刷新"),
+                outputs=[inference_results, getPageNum, delete],
+            )
+            getPageNum.submit(
+                fn=on_page_num_change,
+                inputs=[getPageNum],
+                outputs=[inference_results, getPageNum, delete],
+            )
 
-            inference_results.select(fn=on_select_img, inputs=[inference_results],
-                                     outputs=[delete])
-            delete.click(fn=lambda: delete_img(img_name, result_path), outputs=[inference_results])
+            inference_results.select(
+                fn=on_select_img, inputs=[inference_results], outputs=[delete]
+            )
+            delete.click(
+                fn=lambda: delete_img(img_name, result_path),
+                outputs=[inference_results],
+            )
 
     port = 7860
     has_public_ip(port)

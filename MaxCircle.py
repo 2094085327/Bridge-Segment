@@ -19,8 +19,12 @@ def get_contour_points(c, left_x, right_x, up_y, down_y, Nx, Ny):
     pixel_X = np.linspace(left_x, right_x, Nx)
     pixel_Y = np.linspace(up_y, down_y, Ny)
     xx, yy = np.meshgrid(pixel_X, pixel_Y)
-    in_list = [(xx[i][j], yy[i][j]) for i in range(Nx) for j in range(Ny) if
-               cv2.pointPolygonTest(c, (xx[i][j], yy[i][j]), False) > 0]
+    in_list = [
+        (xx[i][j], yy[i][j])
+        for i in range(Nx)
+        for j in range(Ny)
+        if cv2.pointPolygonTest(c, (xx[i][j], yy[i][j]), False) > 0
+    ]
     return np.array(in_list)
 
 
@@ -66,9 +70,13 @@ def get_each_max(in_point, distance_transform):
 
 
 def random_loop(target_length, in_point, random_circle_list, distance_transform):
+    i = 0
     while len(random_circle_list) < target_length:
         # print(in_point)
-
+        if i > 10000:
+            print("运行循环超出10000次，跳出循环")
+            break
+        i = i + 1
         selected_points = in_point[np.random.choice(len(in_point), 1, replace=False)]
 
         center = tuple(selected_points.tolist()[0])
@@ -103,11 +111,15 @@ def max_circle(binarization_image, img_original, high_precision):
         img_original: 绘制好宽度的图片
     """
     # 寻找二值图像的轮廓
-    contous, _ = cv2.findContours(np.asarray(binarization_image), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contous, _ = cv2.findContours(
+        np.asarray(binarization_image), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    print("binarization_image: ", np.asarray(binarization_image).shape)
 
     print("len(contous): ", len(contous))
     if len(contous) == 0:
-        return
+        return img_original, [[None], [None], [None], [None]], []
 
         # 创建一个全零的数组，与原图像具有相同的尺寸
     output_image = np.zeros_like(binarization_image)
@@ -145,7 +157,9 @@ def max_circle(binarization_image, img_original, high_precision):
 
     print("添加完成")
     # 计算距离变换
-    distance_transform = cv2.distanceTransform(output_image.astype(np.uint8), cv2.DIST_L2, 3)
+    distance_transform = cv2.distanceTransform(
+        output_image.astype(np.uint8), cv2.DIST_L2, 3
+    )
 
     for c in contous:
         get_crack = None
@@ -157,7 +171,12 @@ def max_circle(binarization_image, img_original, high_precision):
                 index = random.randint(0, len(x) - 1)
                 random_x, random_y = x[index], y[index]
 
-                if cv2.pointPolygonTest(c, (float(random_x), float(random_y)), measureDist=False) >= 0:
+                if (
+                    cv2.pointPolygonTest(
+                        c, (float(random_x), float(random_y)), measureDist=False
+                    )
+                    >= 0
+                ):
                     get_crack = crack
                     break
         print("选择完成")
@@ -180,24 +199,33 @@ def max_circle(binarization_image, img_original, high_precision):
                 TARGET_LENGTHS = [20]
 
             for target_length in TARGET_LENGTHS:
-
-                random_circle_list = random_loop(target_length, in_point, random_circle_list, distance_transform)
-                average_width = sum(circle[0] for circle in random_circle_list) / len(random_circle_list)
+                random_circle_list = random_loop(
+                    target_length, in_point, random_circle_list, distance_transform
+                )
+                average_width = sum(circle[0] for circle in random_circle_list) / len(
+                    random_circle_list
+                )
                 average_width_list.append(round(average_width * 2, 2))
 
                 # 如果不是最后一次迭代，则截断列表
                 if target_length == 10:
                     random_circle_list = random_circle_list[:1]
 
-            finally_average_width_list.append(round(sum(average_width_list) / len(average_width_list), 2))
+            finally_average_width_list.append(
+                round(sum(average_width_list) / len(average_width_list), 2)
+            )
         else:
             continue
 
+    print("平均长度计算完成")
     random_wide_list = [round(circle[0] * 2, 2) for circle in random_circle_list]
-
-    expansion_circle_radius_list = [circle[0] for circle in expansion_circle_list]  # 每条裂缝最大内切圆半径列表
+    expansion_circle_radius_list = [
+        circle[0] for circle in expansion_circle_list
+    ]  # 每条裂缝最大内切圆半径列表
     max_radius = max(expansion_circle_radius_list)
-    max_center = expansion_circle_list[expansion_circle_radius_list.index(max_radius)][1]
+    max_center = expansion_circle_list[expansion_circle_radius_list.index(max_radius)][
+        1
+    ]
     max_wide_list = [round(max_radius * 2, 2)]
     # 从random_circle_list中移除第一个
     random_circle_list.pop(0)
@@ -209,19 +237,41 @@ def max_circle(binarization_image, img_original, high_precision):
     # 绘制随机内切圆
     for random_circle in random_circle_list:
         radius_s, center_s = random_circle
-        cv2.circle(img_original, (int(center_s[0]), int(center_s[1])), int(radius_s), (255, 255, 0), 2)
+        cv2.circle(
+            img_original,
+            (int(center_s[0]), int(center_s[1])),
+            int(radius_s),
+            (255, 255, 0),
+            2,
+        )
 
     # 绘制裂缝轮廓最大内切圆
     for expansion_circle in expansion_circle_list:
         radius_s, center_s = expansion_circle
         if radius_s == max_radius:  # 最大内切圆，用红色标注
-            cv2.circle(img_original, (int(max_center[0]), int(max_center[1])), int(max_radius), (255, 0, 0), 2)
-
+            cv2.circle(
+                img_original,
+                (int(max_center[0]), int(max_center[1])),
+                int(max_radius),
+                (255, 0, 0),
+                2,
+            )
 
         else:  # 其他内切圆，用青色标注
             secondary_wide_list.append(round(radius_s * 2, 2))
             if radius_s != 0:
-                cv2.circle(img_original, (int(center_s[0]), int(center_s[1])), int(radius_s), (0, 255, 255), 2)
+                cv2.circle(
+                    img_original,
+                    (int(center_s[0]), int(center_s[1])),
+                    int(radius_s),
+                    (0, 255, 255),
+                    2,
+                )
 
-    all_data_list = [random_wide_list, secondary_wide_list, max_wide_list, finally_average_width_list]
+    all_data_list = [
+        random_wide_list,
+        secondary_wide_list,
+        max_wide_list,
+        finally_average_width_list,
+    ]
     return img_original, all_data_list, skeleton_pixel
