@@ -1,0 +1,1 @@
+{"database": {"host": "localhost", "port": 3306, "username": "root", "password": "password"}, "logging": {"level": "info", "file": "app.log"}, "models": {"path": "C:\\Users\\86188\\Desktop\\Bridge-Segment\\models\\train15.pt", "name": "train15.pt"}}
