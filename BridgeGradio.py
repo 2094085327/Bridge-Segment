@@ -144,7 +144,7 @@ def estimate_normal_for_pos(pos, points, n):
     normals: nx2 ndarray 在pos位置处的法向量.
     """
 
-    # estimate normal vectors at a given point
+    # 估计给定点的法向量
     pts = np.copy(points)
     tree = KDTree(pts, leaf_size=2)
     idx = tree.query(
@@ -324,29 +324,52 @@ def load_model(load_model_name, load_model_path=None):
     return model
 
 
-def get_args(conf, threshold, offset, noise, high_precision, simple_line, wide):
-    print("conf:", conf)
-    print("threshold:", threshold)
-    print("offset:", offset)
-    print("noise:", noise)
-    print("high_precision:", high_precision)
-    print("simple_line:", simple_line)
-    print("wide:", wide)
+def get_args(
+    get_conf,
+    get_threshold,
+    get_offset,
+    get_noise,
+    get_high_precision,
+    get_simple_line,
+    get_wide,
+):
+    """
+    获取参数
+    Args:
+        get_conf:  置信度
+        get_threshold:  阈值
+        get_offset:  偏移量
+        get_noise:  噪点大小
+        get_high_precision:  高精度模式
+        get_simple_line:  简单模式
+        get_wide:
+
+    Returns:
+        None
+
+    """
+    print("conf:", get_conf)
+    print("threshold:", get_threshold)
+    print("offset:", get_offset)
+    print("noise:", get_noise)
+    print("high_precision:", get_high_precision)
+    print("simple_line:", get_simple_line)
+    print("wide:", get_wide)
 
     global auto_conf, auto_threshold, auto_offset, auto_noise, auto_high_precision, auto_simple_line, auto_wide
 
-    auto_conf = conf
-    auto_threshold = threshold
-    auto_offset = offset
-    auto_noise = noise
-    auto_high_precision = high_precision
-    auto_simple_line = simple_line
-    auto_wide = wide
+    auto_conf = get_conf
+    auto_threshold = get_threshold
+    auto_offset = get_offset
+    auto_noise = get_noise
+    auto_high_precision = get_high_precision
+    auto_simple_line = get_simple_line
+    auto_wide = get_wide
 
 
 def auto_generate():
     global model, pro_img_list
-    print("线程启动")
+    print("线程启动...")
     time.sleep(1)
     stop_event.clear()
     # 打开摄像头
@@ -420,6 +443,12 @@ def output_img():
     return pro_img_list
 
 
+def thread_start():
+    global thread
+    thread = threading.Thread(target=auto_generate)
+    thread.start()
+
+
 def auto_start():
     print("开始自动检测")
     stop_event.clear()
@@ -428,7 +457,7 @@ def auto_start():
 def auto_stop():
     print("停止自动检测")
     stop_event.set()
-    thread.join()
+    # thread.join()
 
 
 def file_upload(model_name, conf, img=None):
@@ -1049,6 +1078,7 @@ if __name__ == "__main__":
     page = 0
     pageNum = 0
     auto = False
+    thread = None
     model, img_name, gray_img_total = None, None, None
     finish_data = []
     gallery_list = []
@@ -1195,8 +1225,6 @@ if __name__ == "__main__":
             with gr.Row():
                 out_img = gr.Gallery(label="预处理图片", columns=1, rows=1, preview=True)
 
-            thread = threading.Thread(target=auto_generate)
-
             run_button.click(
                 fn=get_args,
                 inputs=[
@@ -1209,7 +1237,7 @@ if __name__ == "__main__":
                     wide,
                 ],
             )
-            run_button.click(fn=thread.start)
+            run_button.click(fn=thread_start)
             run_button.click(fn=output_img, outputs=[out_img])
             stop_button.click(fn=auto_stop)
         with gr.Tab("图库浏览器"):
