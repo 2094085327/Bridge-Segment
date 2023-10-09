@@ -1,100 +1,24 @@
-import errno
 import os
-import shutil
 import threading
 import time
 from datetime import datetime
-import socket
+
 import cv2
 import gradio as gr
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from gradio import components
 from skimage import measure
 from skimage.morphology import skeletonize
-from ultralytics import YOLO
 from sklearn.neighbors import KDTree
-import re
+from ultralytics import YOLO
 
-import matplotlib.pyplot as plt
 import Config as Cf
 import Gallery as Gal
-import MaxCircle as Mc
+import ImageView as Iv
 import IncircleWide as Iw
-
-
-def is_file_in_use(file_path):
-    """
-    检查文件是否被其他程序占用
-    Args:
-        file_path: 文件路径
-    Returns:
-        True: 文件被占用
-        False: 文件未被占用
-    """
-    if not os.path.exists(file_path):
-        return False  # 文件不存在，因此未被占用
-
-    try:
-        with open(file_path, "rb+") as f:
-            return False
-    except IOError as e:
-        if e.errno == errno.EACCES:
-            return True  # 文件被占用
-        elif e.errno == errno.ENOENT:
-            return False  # 文件不存在
-        else:
-            return True  # 其他未知错误，假设文件被占用
-
-
-def copyFiles():
-    """
-    将Yolo处理后生成的图片进行转移，放置到对应文件夹中
-    Args:
-
-    Returns:
-        new_img: 转移后的图片
-    """
-    directory = os.path.join(root_dir, "runs/segment")
-    folders = [
-        os.path.join(directory, f)
-        for f in os.listdir(directory)
-        if os.path.isdir(os.path.join(directory, f))
-    ]
-    folders.sort(key=os.path.getctime)
-
-    newest_folder_path = folders[-1] if folders else None
-    if not newest_folder_path:
-        return []
-
-    image_files = (
-        os.path.join(root, file)
-        for root, _, files in os.walk(newest_folder_path)
-        for file in files
-        if file.endswith((".jpg", ".jpeg", ".png", ".gif"))
-    )
-
-    new_images = []
-    for file_path in image_files:
-        try:
-            current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-            new_file_name = f"{current_time}.jpg"
-            destination_path = os.path.join(root_dir, "result", "yolo", new_file_name)
-
-            if not is_file_in_use(file_path):
-                shutil.copy(file_path, destination_path)
-                image = Image.open(destination_path)
-                new_images.append(image)
-            else:
-                print(f"文件 {file_path} 正在被其他程序占用，无法复制。")
-        except Exception as e:
-            print(f"无法打开图像文件 {file_path}: {str(e)}")
-
-    # 删除所有文件夹
-    for folder in folders:
-        shutil.rmtree(folder)
-
-    return new_images
+import MaxCircle as Mc
 
 
 def SVD(points):
@@ -368,6 +292,12 @@ def get_args(
 
 
 def auto_generate():
+    """
+    自动检测主进程
+    Returns:
+        None
+
+    """
     global model, pro_img_list
     print("线程启动...")
     time.sleep(1)
@@ -387,12 +317,10 @@ def auto_generate():
         # 获取原始图片的宽度和高度
         height, width, _ = img.shape
         img_org = img.copy()
-        print("img_org: ", img_org.shape)
 
-        print("width: ", width)
-        print("height: ", height)
+        print("img: ", img.shape)
+        print("总像素大小:", width * height)
 
-        print(width * height)
         # 计算缩放后的宽度和高度
         if width * height > 1920 * 1080:
             img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
@@ -415,7 +343,7 @@ def auto_generate():
         # 进行推理
         model.predict(img_pil, save=True, save_txt=True, imgsz=640, conf=auto_conf)
 
-        copyFiles()
+        Cf.copyFiles()
 
         pro_img_list = process_images(
             img, auto_noise, auto_threshold, auto_offset, auto_simple_line, auto_wide
@@ -439,7 +367,9 @@ def auto_generate():
 
 def output_img():
     global pro_img_list
-    time.sleep(5)
+    while len(pro_img_list) == 0:
+        time.sleep(1)
+    # time.sleep(5)
     return pro_img_list
 
 
@@ -460,11 +390,11 @@ def auto_stop():
     # thread.join()
 
 
-def file_upload(model_name, conf, img=None):
+def file_upload(_model_name, conf, img=None):
     """
     传递处理后图片
     Args:
-        model_name: 模型名称
+        _model_name: 模型名称
         img: 待处理图片
         conf: 置信度
 
@@ -472,6 +402,11 @@ def file_upload(model_name, conf, img=None):
         new_images: 转移后的图片
     """
     global model, pro_img_list
+    if _model_name == "":
+        raise gr.Error("未选择模型")
+
+    if img is None:
+        raise gr.Error("未选择待处理图片")
 
     # 获取原始图片的宽度和高度
     height, width, _ = img.shape
@@ -484,20 +419,20 @@ def file_upload(model_name, conf, img=None):
     img_pil = Image.fromarray(np.uint8(img))
 
     if not models_check:
-        model = load_model(model_name)
+        model = load_model(_model_name)
 
-    load_path = os.path.join(models_path, model_name)
+    load_path = os.path.join(models_path, _model_name)
     if load_path != model_path:
-        model = load_model(model_name, load_path)
-        Cf.write_models(load_path, model_name)
+        model = load_model(_model_name, load_path)
+        Cf.write_models(load_path, _model_name)
 
     else:
-        Cf.write_models(os.path.join(models_path, model_name), model_name)
+        Cf.write_models(os.path.join(models_path, _model_name), _model_name)
 
     # 进行推理
     model.predict(img_pil, save=True, save_txt=True, imgsz=640, conf=conf)
 
-    new_images = copyFiles()
+    new_images = Cf.copyFiles()
     return new_images
 
 
@@ -696,7 +631,7 @@ def easy_mode2(inverted_img, org_img, width_threshold):
     skeleton = skeletonize(blobs)
     x, y = np.where(skeleton > 0)
 
-    skeleton_pixel = np.where(blobs == False, 0, 255)
+    skeleton_pixel = np.where(blobs is False, 0, 255)
 
     # skeleton_pixel = np.zeros((iw, ih, 3), dtype=np.uint8)
     # skeleton_pixel[skeleton, 1] = 255
@@ -877,198 +812,6 @@ def get_page_data(img_list, page_num, items_per_page=20):
     return img_list[start:end]
 
 
-def update_img_list(increase):
-    """
-    更新图片列表
-    Args:
-        increase: 更新图片的方法
-    Returns:
-        page_data: 更新后的图片列表
-        page_num: 当前页码
-        delete: 删除按钮的状态
-    """
-    global img_page_list, pageNum
-
-    total_pages = (len(img_page_list) + 19) // 20  # 计算总页数
-
-    def init_page():
-        return 0
-
-    def last_page():
-        return total_pages - 1
-
-    def current_page():
-        return pageNum
-
-    def prev_page():
-        return max(0, pageNum - 1)
-
-    def next_gallery_page():
-        if pageNum < total_pages - 1:
-            return pageNum + 1
-        return pageNum
-
-    def refresh_page():
-        global img_page_list
-        img_page_list = Gal.initialization_img_list("yolo")
-        return pageNum
-
-    actions = {
-        "初始化": init_page,
-        "首页": init_page,
-        "刷新": refresh_page,
-        "尾页": last_page,
-        "跳转": current_page,
-        "上一页": prev_page,
-        "下一页": next_gallery_page,
-    }
-
-    pageNum = actions[increase]()
-    page_data = get_page_data(img_page_list, pageNum)
-
-    return page_data, pageNum, delete.update(visible=False)
-
-
-def get_page_boundaries(page_num, items_per_page, total_items):
-    """
-    获取当前页的起始和结束位置
-    Args:
-        page_num: 当前页码
-        items_per_page: 每页显示的图片数量
-        total_items: 图片总数
-
-    Returns:
-        start: 起始位置
-        end: 结束位置
-        page_num: 当前页码
-    """
-    start = page_num * items_per_page
-    end = start + items_per_page
-
-    if start >= total_items:
-        page_num = (total_items - 1) // items_per_page
-        start = page_num * items_per_page
-        end = start + items_per_page
-
-    return start, end, page_num
-
-
-def on_page_num_change(event, items_per_page=20):
-    """
-    更新当前页码
-    Args:
-        event: 当前页码
-        items_per_page: 每页显示的图片数量
-
-    Returns:
-        img_page_list: 更新后的图片列表
-        page_num: 当前页码
-        delete: 删除按钮是否可见
-    """
-    global pageNum
-    pageNum = max(int(event), 0)  # 保证pageNum非负
-
-    start, end, pageNum = get_page_boundaries(
-        pageNum, items_per_page, len(img_page_list)
-    )
-
-    return img_page_list[start:end], pageNum, delete.update(visible=False)
-
-
-def on_select_img(gallery_list_now, event_data: gr.SelectData):
-    """
-    被选择的图片
-    Args:
-        gallery_list_now: 图片列表
-        event_data: 当前选中的图片
-
-    Returns:
-          delete 按钮状态
-    """
-    global img_name, gallery_list
-    gallery_list = gallery_list_now
-    filename = os.path.basename(gallery_list_now[event_data.index]["name"])
-    img_name = filename
-
-    return delete.update(visible=True)
-
-
-def delete_img(img_name_delete, file_path):
-    """
-    删除图片
-    Args:
-        img_name_delete: 图片名称
-        file_path: 图片路径
-
-    Returns:
-        img_page_list: 删除后的图片列表
-    """
-    global img_page_list
-
-    # 使用列表推导来过滤掉目标字符串
-    filtered_file_paths = [
-        path for path in img_page_list if not path.endswith(img_name_delete)
-    ]
-
-    start = pageNum * 20
-    end = start + 20
-    img_page_list = filtered_file_paths
-
-    os.remove(os.path.join(file_path, "yolo", img_name_delete))
-    return img_page_list[start:end]
-
-
-def is_private_ip(ip):
-    # 私网IP地址范围
-    private_ranges = [
-        ("10.0.0.0", "10.255.255.255"),
-        ("172.16.0.0", "172.31.255.255"),
-        ("192.168.0.0", "192.168.255.255"),
-    ]
-
-    # 将IP地址转换为整数
-    ip_int = (
-        int(ip.split(".")[0]) << 24
-        | int(ip.split(".")[1]) << 16
-        | int(ip.split(".")[2]) << 8
-        | int(ip.split(".")[3])
-    )
-
-    # 判断IP地址是否在私网IP地址范围内
-    for start, end in private_ranges:
-        start_int = (
-            int(start.split(".")[0]) << 24
-            | int(start.split(".")[1]) << 16
-            | int(start.split(".")[2]) << 8
-            | int(start.split(".")[3])
-        )
-        end_int = (
-            int(end.split(".")[0]) << 24
-            | int(end.split(".")[1]) << 16
-            | int(end.split(".")[2]) << 8
-            | int(end.split(".")[3])
-        )
-        if start_int <= ip_int <= end_int:
-            return False
-    print("IP网段位于公网网段内，进行启用...")
-    return True
-
-
-def has_public_ip(port):
-    address = socket.getaddrinfo(socket.gethostname(), None)
-    print("检索到本机IP，提供访问地址")
-    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
-    for addr in address:
-        match = re.search(pattern, addr[4][0])
-        if match:
-            if is_private_ip(match.group(1)):
-                print("检索到公网IP，进行启用...")
-                print(f"Running on public URL:  http://{match.group(1)}:{port}")
-            else:
-                print(f"http://{match.group(1)}:{port}")
-    return False
-
-
 if __name__ == "__main__":
     Cf.inspect_config_file()
 
@@ -1076,12 +819,13 @@ if __name__ == "__main__":
     root_dir = os.path.dirname(os.path.abspath(__file__))
     models_path = os.path.join(root_dir, "models")
     page = 0
-    pageNum = 0
+    # pageNum = 0
     auto = False
     thread = None
-    model, img_name, gray_img_total = None, None, None
+    img_name = None
+    model, gray_img_total = None, None
     finish_data = []
-    gallery_list = []
+    # gallery_list = []
     pro_img_list = []
     stop_event = threading.Event()
     stop_event.set()
@@ -1242,60 +986,9 @@ if __name__ == "__main__":
             stop_button.click(fn=auto_stop)
         with gr.Tab("图库浏览器"):
             # Blocks特有组件，设置所有子组件按水平排列
+            Iv.imageView()
 
-            with gr.Row():
-                with gr.Tab("识别结果"):
-                    with gr.Row():
-                        first_page = gr.Button("首页")
-                        beforeButton = gr.Button("上一页")
-                        getPageNum = gr.Number(label="页码", interactive=True)
-                        refresh = gr.Button("🔄")
-                        nextButton = gr.Button(
-                            "下一页",
-                        )
-                        end_page = gr.Button("尾页")
-                    inference_results = gr.Gallery(
-                        label="推理结果", value=img_list, columns=5, object_fit="contain"
-                    )
-                    delete = gr.Button("删除", visible=False)
-                with gr.Tab("宽度计算"):
-                    with gr.Row():
-                        block2 = Iw.inCircleWide()
-
-            first_page.click(
-                fn=lambda: update_img_list("首页"),
-                outputs=[inference_results, getPageNum, delete],
-            )
-            beforeButton.click(
-                fn=lambda: update_img_list("上一页"),
-                outputs=[inference_results, getPageNum, delete],
-            )
-            nextButton.click(
-                fn=lambda: update_img_list("下一页"),
-                outputs=[inference_results, getPageNum, delete],
-            )
-            end_page.click(
-                fn=lambda: update_img_list("尾页"),
-                outputs=[inference_results, getPageNum, delete],
-            )
-            refresh.click(
-                fn=lambda: update_img_list("刷新"),
-                outputs=[inference_results, getPageNum, delete],
-            )
-            getPageNum.submit(
-                fn=on_page_num_change,
-                inputs=[getPageNum],
-                outputs=[inference_results, getPageNum, delete],
-            )
-
-            inference_results.select(
-                fn=on_select_img, inputs=[inference_results], outputs=[delete]
-            )
-            delete.click(
-                fn=lambda: delete_img(img_name, result_path),
-                outputs=[inference_results],
-            )
-
-    port = 7860
-    has_public_ip(port)
-    demo.launch(server_name="0.0.0.0", server_port=port)
+    config = Cf.read_config_file()
+    port = config["database"]["port"]
+    Cf.has_public_ip(port)
+    demo.launch(server_name=config["database"]["host"], server_port=port)

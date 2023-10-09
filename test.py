@@ -1,24 +1,14 @@
-import threading 
-import time 
-
-def run(): 
-	while True: 
-		print('thread running') 
-		global stop_threads 
-		if stop_threads: 
-			break
-
-stop_threads = False
-t1 = threading.Thread(target = run) 
-t1.start() 
-stop_threads = True
-t1.join() 
-print('thread killed111111111111111111111111111')
+import gradio as gr
 
 
-stop_threads = False
-# t1 = threading.Thread(target = run)
-t1.start()
-stop_threads = True
-t1.join()
-print('thread killed2')
+def calculator(num1):
+    return num1
+
+
+demo = gr.Interface(
+    calculator,
+    ["number"],
+    "number",
+    live=True,
+)
+demo.launch()

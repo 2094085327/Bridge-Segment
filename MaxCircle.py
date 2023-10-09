@@ -138,7 +138,7 @@ def max_circle(binarization_image, img_original, high_precision):
     height, width = binarization_image_np.shape[:2]
     skeleton = skeletonize(binarization_image_np)
 
-    skeleton_pixel = np.where(binarization_image_np == False, 0, 255)
+    skeleton_pixel = np.where(binarization_image_np is False, 0, 255)
 
     # 创建8连通结构元素
     structure = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
@@ -148,7 +148,6 @@ def max_circle(binarization_image, img_original, high_precision):
     labeled, num_features = ndimage.label(skeleton.astype(int), structure=structure)
     # 创建一个列表来存储每一条裂缝的骨架
     for i in range(1, num_features + 1):
-        print("i: ", i)
         # 获取单独的裂缝骨架
         crack_skeleton = np.where(labeled == i, 1, 0)
 
@@ -179,7 +178,6 @@ def max_circle(binarization_image, img_original, high_precision):
                 ):
                     get_crack = crack
                     break
-        print("选择完成")
         in_point = np.argwhere(get_crack == 1)
 
         radius, center = get_each_max(in_point, distance_transform)

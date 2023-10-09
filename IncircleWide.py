@@ -202,7 +202,7 @@ def update_page(increase):
 
 def inCircleWide():
     global delete_wide
-    result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result')
+    result_path = Cf.result_path
 
     with gr.Blocks() as demo2:
         with gr.Row():
