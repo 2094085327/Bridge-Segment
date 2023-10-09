@@ -7,6 +7,7 @@ import shutil
 from datetime import datetime
 
 from PIL import Image
+from ultralytics import YOLO
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
@@ -260,3 +261,24 @@ def copyFiles():
         shutil.rmtree(folder)
 
     return new_images
+
+
+def load_model(load_model_name, load_model_path=None):
+    """
+    加载模型
+    Args:
+        load_model_name: 模型名字
+        load_model_path: 模型路径
+
+    Returns:
+        model: 加载后的模型
+    """
+    # global model
+    if load_model_path is None and root_dir is not None:
+        load_model_path = os.path.join(root_dir, "models", load_model_name)
+        model = YOLO(load_model_path)
+        print("模型加载完毕")
+    elif load_model_path is not None:
+        model = YOLO(load_model_path)
+
+    return model

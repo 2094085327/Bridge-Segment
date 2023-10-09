@@ -1,8 +1,8 @@
-import cv2
-import numpy as np
 import math
 import random
 
+import cv2
+import numpy as np
 from scipy import ndimage
 from skimage.morphology import skeletonize
 
@@ -138,7 +138,8 @@ def max_circle(binarization_image, img_original, high_precision):
     height, width = binarization_image_np.shape[:2]
     skeleton = skeletonize(binarization_image_np)
 
-    skeleton_pixel = np.where(binarization_image_np is False, 0, 255)
+    skeleton_pixel = np.where(binarization_image_np == False, 0, 255)
+
 
     # 创建8连通结构元素
     structure = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]

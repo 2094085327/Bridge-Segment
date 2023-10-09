@@ -12,10 +12,8 @@ from gradio import components
 from skimage import measure
 from skimage.morphology import skeletonize
 from sklearn.neighbors import KDTree
-from ultralytics import YOLO
 
 import Config as Cf
-import Gallery as Gal
 import ImageView as Iv
 import IncircleWide as Iw
 import MaxCircle as Mc
@@ -226,28 +224,6 @@ def get_crack_ctrlpts(centers, normals, bpoints, hband=5, vband=2, est_width=0):
     # show_2dpoints([np.array([[ci[0],interp1],[ci[0],interp2]]),np.array([t1,t2,b1,b2]),cpoints_loc,bl,br],[10,20,15,2,2])
     return interp_segm, widths
 
-
-def load_model(load_model_name, load_model_path=None):
-    """
-    加载模型
-    Args:
-        load_model_name: 模型名字
-        load_model_path: 模型路径
-
-    Returns:
-        model: 加载后的模型
-    """
-    global model
-    if load_model_path is None and root_dir is not None:
-        load_model_path = os.path.join(root_dir, "models", load_model_name)
-        model = YOLO(load_model_path)
-        print("模型加载完毕")
-    elif load_model_path is not None:
-        model = YOLO(load_model_path)
-
-    return model
-
-
 def get_args(
     get_conf,
     get_threshold,
@@ -330,11 +306,11 @@ def auto_generate():
         img_pil = Image.fromarray(np.uint8(img))
 
         if not models_check:
-            model = load_model(model_name)
+            model = Cf.load_model(model_name)
 
         load_path = os.path.join(models_path, model_name)
         if load_path != model_path:
-            model = load_model(model_name, load_path)
+            model = Cf.load_model(model_name, load_path)
             Cf.write_models(load_path, model_name)
 
         else:
@@ -368,8 +344,7 @@ def auto_generate():
 def output_img():
     global pro_img_list
     while len(pro_img_list) == 0:
-        time.sleep(1)
-    # time.sleep(5)
+        time.sleep(0.1)
     return pro_img_list
 
 
@@ -419,11 +394,11 @@ def file_upload(_model_name, conf, img=None):
     img_pil = Image.fromarray(np.uint8(img))
 
     if not models_check:
-        model = load_model(_model_name)
+        model = Cf.load_model(_model_name)
 
     load_path = os.path.join(models_path, _model_name)
     if load_path != model_path:
-        model = load_model(_model_name, load_path)
+        model = Cf.load_model(_model_name, load_path)
         Cf.write_models(load_path, _model_name)
 
     else:
@@ -819,13 +794,11 @@ if __name__ == "__main__":
     root_dir = os.path.dirname(os.path.abspath(__file__))
     models_path = os.path.join(root_dir, "models")
     page = 0
-    # pageNum = 0
     auto = False
     thread = None
-    img_name = None
+    # img_name = None
     model, gray_img_total = None, None
     finish_data = []
-    # gallery_list = []
     pro_img_list = []
     stop_event = threading.Event()
     stop_event.set()
@@ -843,7 +816,8 @@ if __name__ == "__main__":
     models_check, model_path = Cf.check_models()
     model_name = os.path.basename(model_path)
     if models_check:
-        load_model(model_name, model_path)
+        model = Cf.load_model(model_name, model_path)
+
     with gr.Blocks() as demo:
         folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
         result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
@@ -851,8 +825,8 @@ if __name__ == "__main__":
         file_list = os.listdir(folder_path)
 
         # 初始化图片列表
-        img_page_list = Gal.initialization_img_list("yolo")
-        img_list = img_page_list[0:20]
+        # img_page_list = Gal.initialization_img_list("yolo")
+        # img_list = img_page_list[0:20]
 
         in_circle_list = Iw.initialization()
 
