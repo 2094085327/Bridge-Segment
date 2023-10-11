@@ -1,16 +1,18 @@
 import errno
 import json
 import os
-import socket
 import re
 import shutil
+import socket
 from datetime import datetime
 
 from PIL import Image
 from ultralytics import YOLO
+import Logger as Log
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
+log = Log.HandleLog()
 
 
 def inspect_config_file():
@@ -252,9 +254,9 @@ def copyFiles():
                 image = Image.open(destination_path)
                 new_images.append(image)
             else:
-                print(f"文件 {file_path} 正在被其他程序占用，无法复制。")
+                log.warning(f"文件 {file_path} 正在被其他程序占用，无法复制。")
         except Exception as e:
-            print(f"无法打开图像文件 {file_path}: {str(e)}")
+            log.error(f"无法打开图像文件 {file_path}: {str(e)}")
 
     # 删除所有文件夹
     for folder in folders:
@@ -277,7 +279,7 @@ def load_model(load_model_name, load_model_path=None):
     if load_model_path is None and root_dir is not None:
         load_model_path = os.path.join(root_dir, "models", load_model_name)
         model = YOLO(load_model_path)
-        print("模型加载完毕")
+        log.info("模型加载完毕")
     elif load_model_path is not None:
         model = YOLO(load_model_path)
 

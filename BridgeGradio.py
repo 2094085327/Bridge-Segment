@@ -14,8 +14,10 @@ from skimage.morphology import skeletonize
 from sklearn.neighbors import KDTree
 
 import Config as Cf
+import GlobalArgs as Ga
 import ImageView as Iv
 import IncircleWide as Iw
+import Logger as Log
 import MaxCircle as Mc
 
 
@@ -215,14 +217,15 @@ def get_crack_ctrlpts(centers, normals, bpoints, hband=5, vband=2, est_width=0):
                 interps_rec = interps_rec.reshape(1, -1)[0, :]
                 interp_segm.append(interps_rec)
         except Exception as e:
-            # print("the %d-th was wrong" % i)
-            # traceback.print_exc()
+            log.error("计算裂缝宽度时出现错误")
+            log.error(e)
             continue
     interp_segm = np.array(interp_segm)
     widths = np.array(widths)
     # check
     # show_2dpoints([np.array([[ci[0],interp1],[ci[0],interp2]]),np.array([t1,t2,b1,b2]),cpoints_loc,bl,br],[10,20,15,2,2])
     return interp_segm, widths
+
 
 def get_args(
     get_conf,
@@ -248,13 +251,13 @@ def get_args(
         None
 
     """
-    print("conf:", get_conf)
-    print("threshold:", get_threshold)
-    print("offset:", get_offset)
-    print("noise:", get_noise)
-    print("high_precision:", get_high_precision)
-    print("simple_line:", get_simple_line)
-    print("wide:", get_wide)
+    log.info(f"置信度conf: {get_conf}")
+    log.info(f"阈值threshold: {get_threshold}")
+    log.info(f"偏移量offset: {get_offset}")
+    log.info(f"噪点大小noise: {get_noise}")
+    log.info(f"高精度模式high_precision: {get_high_precision}")
+    log.info(f"简单模式simple_line: {get_simple_line}")
+    log.info(f"宽度计算阈值wide: {get_wide}")
 
     global auto_conf, auto_threshold, auto_offset, auto_noise, auto_high_precision, auto_simple_line, auto_wide
 
@@ -275,11 +278,11 @@ def auto_generate():
 
     """
     global model, pro_img_list
-    print("线程启动...")
-    time.sleep(1)
+    log.info("线程启动...")
     stop_event.clear()
     # 打开摄像头
     cap = cv2.VideoCapture(0)
+    time.sleep(1)
     # 调整图像大小
     width = 800
     height = 600
@@ -294,14 +297,14 @@ def auto_generate():
         height, width, _ = img.shape
         img_org = img.copy()
 
-        print("img: ", img.shape)
-        print("总像素大小:", width * height)
+        log.info(f"图片大小: {img.shape}")
+        log.info(f"总像素大小: {width * height}")
 
         # 计算缩放后的宽度和高度
         if width * height > 1920 * 1080:
             img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
+            log.info(f"缩放后图片大小: {img.shape}")
 
-        print("img_org: ", img_org.shape)
         # 将图片转换为PIL图像对象
         img_pil = Image.fromarray(np.uint8(img))
 
@@ -324,7 +327,7 @@ def auto_generate():
         pro_img_list = process_images(
             img, auto_noise, auto_threshold, auto_offset, auto_simple_line, auto_wide
         )
-        print("预处理完成")
+        log.info("预处理完成")
 
         get_finish_img(
             img_org,
@@ -335,10 +338,10 @@ def auto_generate():
             auto_simple_line,
             auto_wide,
         )
-        print("计算完成")
+        log.info("裂缝计算完成")
         time.sleep(9)
 
-    print("线程已关闭")
+    log.warning("线程已关闭")
 
 
 def output_img():
@@ -355,14 +358,13 @@ def thread_start():
 
 
 def auto_start():
-    print("开始自动检测")
+    log.info("开始自动检测")
     stop_event.clear()
 
 
 def auto_stop():
-    print("停止自动检测")
+    log.info("停止自动检测")
     stop_event.set()
-    # thread.join()
 
 
 def file_upload(_model_name, conf, img=None):
@@ -382,6 +384,8 @@ def file_upload(_model_name, conf, img=None):
 
     if img is None:
         raise gr.Error("未选择待处理图片")
+
+    log.info(f"启用模型: {_model_name}")
 
     # 获取原始图片的宽度和高度
     height, width, _ = img.shape
@@ -497,14 +501,6 @@ def find_intersection(point, direction, contours_img):
 
 
 def easy_mode(inverted_img, width_threshold):
-    # global pro_img_list
-    # print(pro_img_list)
-    # gray_image = pro_img_list[0]
-    # blurred_image = pro_img_list[1]
-    # binarization_img = pro_img_list[2]
-    # conversion_img = pro_img_list[3]
-    # inverted_img = pro_img_list[4]
-
     blobs = np.array(inverted_img)
     blobs = np.where(blobs == 255, 1, blobs)
     iw, ih = blobs.shape
@@ -683,8 +679,8 @@ def get_finish_img(
     global finish_data, pro_img_list
     # 获取原始图片的宽度和高度
     height, width, _ = img.shape
-    print("height: ", height)
-    print("width: ", width)
+    log.info(f"图片高度: {height}")
+    log.info(f"图片宽度: {width}")
     # 缩放图片
     if width * height > 1920 * 1080:
         min_img = cv2.resize(img, (int(width * 0.5), int(height * 0.5)))
@@ -693,15 +689,15 @@ def get_finish_img(
 
     if len(pro_img_list) != 0:
         inverted_img = pro_img_list[4]
-        print("使用缓存")
+        log.info("检测到缓存，进行启用")
     else:
         inverted_img = process_images(
             img, noise_size, threshold, offset, easy_mode_open, width_threshold
         )[4]
-        print("未使用缓存")
+        log.info("未检测到缓存，进行计算")
 
-    print("img1: ", inverted_img.shape)
-    print("img2: ", img.shape)
+    log.info(f"二值化图片大小: {inverted_img.shape}")
+    log.info(f"原图大小: {img.shape}")
     finish_img, all_data_list, skeleton_pixel = Mc.max_circle(
         inverted_img, min_img, high_precision
     )
@@ -788,6 +784,10 @@ def get_page_data(img_list, page_num, items_per_page=20):
 
 
 if __name__ == "__main__":
+    # 初始化日志配置
+    # logging.basicConfig(level = logging.INFO,format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # logger = Cf.logger
+    # 初始化配置文件
     Cf.inspect_config_file()
 
     # 获取当前脚本文件的根目录
@@ -818,25 +818,23 @@ if __name__ == "__main__":
     if models_check:
         model = Cf.load_model(model_name, model_path)
 
+    folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+    result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
+    # 获取文件夹中的文件列表
+    file_list = os.listdir(folder_path)
+
+    # 初始化图片列表
+    # img_page_list = Gal.initialization_img_list("yolo")
+    # img_list = img_page_list[0:20]
+
+    in_circle_list = Iw.initialization()
+
+    # 创建一个文件组
+    options = [
+        file for file in file_list if os.path.isfile(os.path.join(folder_path, file))
+    ]
+
     with gr.Blocks() as demo:
-        folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-        result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
-        # 获取文件夹中的文件列表
-        file_list = os.listdir(folder_path)
-
-        # 初始化图片列表
-        # img_page_list = Gal.initialization_img_list("yolo")
-        # img_list = img_page_list[0:20]
-
-        in_circle_list = Iw.initialization()
-
-        # 创建一个文件组
-        options = [
-            file
-            for file in file_list
-            if os.path.isfile(os.path.join(folder_path, file))
-        ]
-
         if models_check:
             model_input = components.Dropdown(
                 choices=options, value=model_name, label="选择模型文件"
@@ -845,17 +843,19 @@ if __name__ == "__main__":
             # 创建一个文件输入组件
             model_input = components.Dropdown(choices=options, label="选择模型文件")
 
-        with gr.Accordion(label="识别参数", open=False):
-            conf = gr.Slider(label="置信度", minimum=0, maximum=1, value=0.6)
-            threshold = gr.Slider(label="卷积核大小", minimum=0, maximum=255, value=161)
-            offset = gr.Slider(label="偏移值大小", minimum=0, maximum=100, value=31)
-            noise = gr.Slider(label="噪点过滤阈值", minimum=0, maximum=500, value=300)
-            wide = gr.Slider(label="宽度计算阈值", minimum=0, maximum=500, value=60)
-
-        with gr.Accordion(label="检测模式", open=False):
-            # auto_camera = gr.Checkbox(label="自动监测模式", value=False)
-            simple_line = gr.Checkbox(label="单裂缝模式", value=False)
-            high_precision = gr.Checkbox(label="高精度模式(大幅增加计算时间)", value=False)
+        # with gr.Accordion(label="识别参数", open=False):
+        #     conf = gr.Slider(label="置信度", minimum=0, maximum=1, value=0.6)
+        #     threshold = gr.Slider(label="卷积核大小", minimum=0, maximum=255, value=161)
+        #     offset = gr.Slider(label="偏移值大小", minimum=0, maximum=100, value=31)
+        #     noise = gr.Slider(label="噪点过滤阈值", minimum=0, maximum=500, value=300)
+        #     wide = gr.Slider(label="宽度计算阈值", minimum=0, maximum=500, value=60)
+        #
+        # with gr.Accordion(label="检测模式", open=False):
+        #     # auto_camera = gr.Checkbox(label="自动监测模式", value=False)
+        #     simple_line = gr.Checkbox(label="单裂缝模式", value=False)
+        #     high_precision = gr.Checkbox(label="高精度模式(大幅增加计算时间)", value=False)
+        _, args = Ga.allArgs()
+        conf, threshold, offset, noise, wide, simple_line, high_precision = args
 
         with gr.Tab("推理"):
             # Blocks特有组件，设置所有子组件按垂直排列
@@ -965,4 +965,5 @@ if __name__ == "__main__":
     config = Cf.read_config_file()
     port = config["database"]["port"]
     Cf.has_public_ip(port)
+    log = Log.HandleLog()
     demo.launch(server_name=config["database"]["host"], server_port=port)

@@ -5,6 +5,9 @@ import cv2
 import numpy as np
 from scipy import ndimage
 from skimage.morphology import skeletonize
+import Logger as Log
+
+log = Log.HandleLog()
 
 
 def get_min_max_coordinates(c):
@@ -74,7 +77,7 @@ def random_loop(target_length, in_point, random_circle_list, distance_transform)
     while len(random_circle_list) < target_length:
         # print(in_point)
         if i > 10000:
-            print("运行循环超出10000次，跳出循环")
+            log.warning("运行循环超出10000次，跳出循环")
             break
         i = i + 1
         selected_points = in_point[np.random.choice(len(in_point), 1, replace=False)]
@@ -115,22 +118,24 @@ def max_circle(binarization_image, img_original, high_precision):
         np.asarray(binarization_image), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
     )
 
-    print("binarization_image: ", np.asarray(binarization_image).shape)
-
-    print("len(contous): ", len(contous))
+    log.info(f"检测到裂缝数量: {len(contous)} 条")
     if len(contous) == 0:
         return img_original, [[None], [None], [None], [None]], []
 
-        # 创建一个全零的数组，与原图像具有相同的尺寸
+    # 创建一个全零的数组，与原图像具有相同的尺寸
     output_image = np.zeros_like(binarization_image)
 
     # 在全零图像上绘制轮廓，设置轮廓区域为1
     cv2.drawContours(output_image, contous, -1, 1, thickness=cv2.FILLED)
 
-    expansion_circle_list = []  # 所有裂缝最大内切圆半径和圆心列表
-    random_circle_list = []  # 随机选择的裂缝内切圆列表
+    # 所有裂缝最大内切圆半径和圆心列表
+    expansion_circle_list = []
+    # 随机选择的裂缝内切圆列表
+    random_circle_list = []
     # 可能一张图片中存在多条裂缝，对每一条裂缝进行循环计算
     max_len = max(len(c) for c in contous)
+    log.info(f"裂缝最大长度为: {max_len}")
+
     finally_average_width_list = []
 
     # TODO 当其他裂缝过多时只取5条，先运算最大裂缝
@@ -139,7 +144,6 @@ def max_circle(binarization_image, img_original, high_precision):
     skeleton = skeletonize(binarization_image_np)
 
     skeleton_pixel = np.where(binarization_image_np == False, 0, 255)
-
 
     # 创建8连通结构元素
     structure = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
@@ -155,7 +159,7 @@ def max_circle(binarization_image, img_original, high_precision):
         # 将其添加到列表中
         cracks.append(crack_skeleton)
 
-    print("添加完成")
+    log.info("裂缝骨架提取完成")
     # 计算距离变换
     distance_transform = cv2.distanceTransform(
         output_image.astype(np.uint8), cv2.DIST_L2, 3
@@ -216,7 +220,7 @@ def max_circle(binarization_image, img_original, high_precision):
         else:
             continue
 
-    print("平均长度计算完成")
+    log.info("平均宽度计算完成")
     random_wide_list = [round(circle[0] * 2, 2) for circle in random_circle_list]
     expansion_circle_radius_list = [
         circle[0] for circle in expansion_circle_list
