@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from datetime import datetime
@@ -44,7 +45,34 @@ class HandleLog:
             log_path, self.__now_time + "-error" + ".log"
         )  # 收集错误日志信息文件
         self.__logger = logging.getLogger()  # 创建日志记录器
-        self.__logger.setLevel(logging.INFO)  # 设置默认日志记录器记录级别
+        self.__logger.setLevel(self.check_log_rank())  # 设置默认日志记录器记录级别
+
+    @classmethod
+    def check_log_rank(cls):
+        """
+        检查日志级别
+        Args:
+            cls: 类
+
+        Returns:
+            日志级别
+        """
+
+        with open("config.json", "r") as f:
+            config = json.load(f)
+
+        log_rank = config["logging"]["level"]
+        match log_rank:
+            case "DEBUG":
+                return logging.DEBUG
+            case "INFO":
+                return logging.INFO
+            case "WARNING":
+                return logging.WARNING
+            case "ERROR":
+                return logging.ERROR
+            case "CRITICAL":
+                return logging.CRITICAL
 
     @staticmethod
     def __init_logger_handler(_log_path):

@@ -4,10 +4,14 @@ import os
 import re
 import shutil
 import socket
+import subprocess
+import sys
 from datetime import datetime
 
+import gradio as gr
 from PIL import Image
 from ultralytics import YOLO
+
 import Logger as Log
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +24,7 @@ def inspect_config_file():
     检查当前目录下是否存在config.json文件，如果不存在则创建文件
     """
     if not os.path.exists("config.json"):
+        log.warning("未检测到config.json文件，正在创建...")
         config = {
             "database": {
                 "host": "0.0.0.0",
@@ -27,7 +32,9 @@ def inspect_config_file():
                 "username": "root",
                 "password": "password",
             },
-            "logging": {"level": "info", "file": "app.log"},
+            "logging": {"level": "INFO", "file": "app.log"},
+            "cache": {"open": False, "path": "cache", "days": 7},
+            "calculate": {"length": 0, "width": 0},
         }
         with open("config.json", "w") as f:
             f.write(json.dumps(config))
@@ -204,14 +211,17 @@ def is_file_in_use(file_path):
         return False  # 文件不存在，因此未被占用
 
     try:
-        with open(file_path, "rb+") as f:
+        with open(file_path, "rb+"):
             return False
     except IOError as e:
         if e.errno == errno.EACCES:
+            log.error(f"文件 {file_path} 正在被其他程序占用，无法复制。")
             return True  # 文件被占用
         elif e.errno == errno.ENOENT:
+            log.error(f"文件 {file_path} 不存在，无法复制。")
             return False  # 文件不存在
         else:
+            log.error(f"文件 {file_path} 未知错误，无法复制。")
             return True  # 其他未知错误，假设文件被占用
 
 
@@ -275,12 +285,163 @@ def load_model(load_model_name, load_model_path=None):
     Returns:
         model: 加载后的模型
     """
-    # global model
     if load_model_path is None and root_dir is not None:
         load_model_path = os.path.join(root_dir, "models", load_model_name)
-        model = YOLO(load_model_path)
+        model = YOLO(load_model_path, task="segment")
         log.info("模型加载完毕")
     elif load_model_path is not None:
-        model = YOLO(load_model_path)
+        model = YOLO(load_model_path, task="segment")
 
     return model
+
+
+def check_log_info(log_rank):
+    """
+    检查日志等级
+    Args:
+        log_rank: 日志等级
+
+    Returns:
+        返回日志等级
+    """
+    match log_rank:
+        case "调试":
+            return "DEBUG"
+        case "信息":
+            return "INFO"
+        case "警告":
+            return "WARNING"
+        case "错误":
+            return "ERROR"
+        case "严重错误":
+            return "CRITICAL"
+
+
+def check_logrank(log_rank):
+    """
+    转换日志等级
+    Args:
+        log_rank: 日志等级
+
+    Returns:
+        返回日志等级
+    """
+    match log_rank:
+        case "DEBUG":
+            return "调试"
+        case "INFO":
+            return "信息"
+        case "WARNING":
+            return "警告"
+        case "ERROR":
+            return "错误"
+        case "CRITICAL":
+            return "严重错误"
+
+
+def save_config(cache_clean, _length, _width, _loginfo):
+    """
+    保存配置
+    Args:
+        cache_clean: 是否自动清理缓存
+        _length: 参照物长度
+        _width: 参照物宽度
+        _loginfo: 日志等级
+
+    Returns:
+        None
+    """
+    with open("config.json", "r") as f:
+        config = json.load(f)
+    config["cache"]["open"] = cache_clean
+    config["calculate"]["length"] = _length
+    config["calculate"]["width"] = _width
+    config["logging"]["level"] = check_log_info(_loginfo)
+    try:
+        with open("config.json", "w") as f:
+            f.write(json.dumps(config))
+            log.info("配置保存成功")
+            # gr.Info("配置保存成功")
+
+    except BaseException as e:
+        log.error(f"配置保存失败: {str(e)}")
+        # raise gr.Warning("出现错误，请检查日志")
+
+
+def system_check():
+    """
+    检查系统类型
+    Returns:
+        返回使用的重启文件类型
+    """
+    if sys.platform.startswith("win"):
+        log.info("检测到系统为Windows")
+        return "restart.bat"
+    elif sys.platform.startswith("linux"):
+        log.info("检测到系统为Linux")
+        return "restart.sh"
+    elif sys.platform.startswith("darwin"):
+        log.info("检测到系统为MacOS")
+        return "restart.sh"
+    else:
+        log.error("未检测到系统类型，请检查系统环境")
+
+
+def restart_server():
+    """
+    重启服务
+    Returns:
+        None
+    """
+    log.warning("正在重启服务...")
+    restart_file = system_check()
+    bat_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), restart_file)
+    log.warning(bat_path)
+
+    subprocess.call(bat_path, shell=True)
+
+
+def globalConfig():
+    """
+    全局配置
+    Returns:
+        configDemo: 配置界面
+    """
+    config = read_config_file()
+    with gr.Blocks() as configDemo:
+        with gr.Row():
+            save = gr.Button("保存配置")
+            restart = gr.Button("重启服务")
+
+        with gr.Column():
+            cache_clean = gr.Checkbox(label="自动清理缓存文件", value=config["cache"]["open"])
+            getPageNum = gr.Number(
+                label="缓存天数", interactive=True, value=config["cache"]["days"]
+            )
+
+            loginfo = gr.Dropdown(
+                ["调试", "信息", "警告", "错误", "严重错误"],
+                label="日志等级",
+                value=check_logrank(config["logging"]["level"]),
+            )
+            with gr.Row():
+                gr.Text(show_label=False, value="参照物长度", interactive=False)
+                length = gr.Number(
+                    show_label=False,
+                    interactive=True,
+                    value=config["calculate"]["length"],
+                )
+                gr.Text(show_label=False, value="mm", interactive=False)
+
+            with gr.Row():
+                gr.Text(show_label=False, value="参照物宽度", interactive=False)
+                width = gr.Number(
+                    show_label=False,
+                    interactive=True,
+                    value=config["calculate"]["width"],
+                )
+                gr.Text(show_label=False, value="mm", interactive=False)
+
+    save.click(fn=save_config, inputs=[cache_clean, length, width, loginfo])
+    restart.click(fn=restart_server)
+    return configDemo

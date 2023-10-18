@@ -138,6 +138,7 @@ def line_plane_intersection(line1, line2, point, normal):
     intersection_point = line1 + t1 * line1_direction
     return intersection_point
 
+
 def find_intersection(point, direction, contours_img):
     p1 = point - 1000 * direction
     p2 = point + 1000 * direction
@@ -309,6 +310,19 @@ def get_finish_img(
 def process_images(
     pen_pro_img, noise_size, threshold, offset, easy_mode_open, width_threshold
 ):
+    """
+    图像预处理
+    Args:
+        pen_pro_img: 待处理图片
+        noise_size: 噪点大小
+        threshold: 阈值
+        offset: 偏移量
+        easy_mode_open: 简单模式
+        width_threshold: 宽度阈值
+
+    Returns:
+        pro_img_list: 处理后的图片列表
+    """
     global pro_img_list
 
     # 获取原始图像的高度和宽度
@@ -402,8 +416,19 @@ def update_page(increase):
     end = start + 5
     return finish_data[start:end]
 
+def consult_img(img):
+  pass
 
 def reasoning(args, model_input):
+    """
+    推理函数
+    Args:
+        args: 推理参数
+        model_input: 模型输入
+
+    Returns:
+        reasoningDemo: 推理结果
+    """
     conf, threshold, offset, noise, wide, simple_line, high_precision = args
     with gr.Blocks() as reasoningDemo:
         # 垂直排列是默认情况，不加也没关系
@@ -477,7 +502,8 @@ def reasoning(args, model_input):
 
     return reasoningDemo
 
-
+# 初始化配置文件
+Cf.inspect_config_file()
 log = Log.HandleLog()
 root_dir = Cf.root_dir
 models_path = os.path.join(root_dir, "models")

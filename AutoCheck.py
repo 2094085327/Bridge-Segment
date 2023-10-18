@@ -88,6 +88,7 @@ def auto_generate():
     stop_event.clear()
     # 打开摄像头
     cap = cv2.VideoCapture(0)
+
     time.sleep(1)
     # 调整图像大小
     width = 800
@@ -124,6 +125,7 @@ def auto_generate():
 
         else:
             Cf.write_models(os.path.join(models_path, model_name), model_name)
+        # TODO 模型没有以.pt结尾，模型路径不正确,需要修改
 
         # 进行推理
         model.predict(img_pil, save=True, save_txt=True, imgsz=640, conf=auto_conf)
@@ -198,6 +200,8 @@ def autoCheck(args):
     return autoCheckDemo
 
 
+# 初始化配置文件
+Cf.inspect_config_file()
 log = Log.HandleLog()
 root_dir = Cf.root_dir
 models_path = os.path.join(root_dir, "models")

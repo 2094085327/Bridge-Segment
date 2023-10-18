@@ -341,10 +341,13 @@ if __name__ == "__main__":
 
         with gr.Tab("设置"):
             # 宽度计算组件
-            Iw.inCircleWide()
+            Cf.globalConfig()
 
+    Cf.system_check()
     config = Cf.read_config_file()
     port = config["database"]["port"]
+    log_rank = config["logging"]["level"]
     Cf.has_public_ip(port)
     log = Log.HandleLog()
+    log.info(f"启用的日志等级: {log_rank}")
     demo.launch(server_name=config["database"]["host"], server_port=port)
