@@ -1,4 +1,5 @@
 import errno
+import glob
 import json
 import os
 import re
@@ -177,6 +178,59 @@ def width_json(json_name, data_list):
         f.write(json.dumps(width_data, ensure_ascii=False))
 
 
+def write_area_json():
+    # 指定文件夹路径
+    folder_path = os.path.join(root_dir, "result", "inCircle")
+
+    # 查找以txt为后缀的文件，并按照修改时间排序
+    txt_files = sorted(
+        glob.glob(os.path.join(folder_path, "*.json")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+
+    # 获取最新的文件名
+    if txt_files:
+        latest_file = txt_files[0]
+        latest_file_name = os.path.basename(latest_file)
+
+        json_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "result",
+            "inCircle",
+            f"{latest_file_name}",
+        )
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        area_cache_path = os.path.join(root_dir, "cache", "cache_area.json")
+        if os.path.exists(area_cache_path):
+            with open(area_cache_path, "r", encoding="utf-8") as f:
+                area_cache = json.load(f)
+
+            data["proportion"] = area_cache["proportion"]
+            with open(json_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(data, ensure_ascii=False))
+
+            os.remove(area_cache_path)
+
+        cache_path = os.path.join(root_dir, "cache", "cache.json")
+        if os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+
+            data["crack_type"] = cache["crack_type"]
+
+            with open(json_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(data, ensure_ascii=False))
+
+            os.remove(cache_path)
+    else:
+        log.error("未检测到txt文件，请检查文件夹")
+        return
+
+
 def read_width_json(json_name):
     """
     读取宽度数据
@@ -251,6 +305,35 @@ def copyFiles():
         for file in files
         if file.endswith((".jpg", ".jpeg", ".png", ".gif"))
     )
+    txt_path = os.path.join(
+        root_dir, "runs", "segment", "predict", "labels", "image0.txt"
+    )
+    item_type = None
+    if os.path.exists(txt_path):
+        with open(txt_path, "r") as f:
+            first_char = f.read(1)
+            match first_char:
+                case "0":
+                    item_type = "竖状裂缝"
+                case "1":
+                    item_type = "块状裂缝"
+                case "2":
+                    item_type = "网状裂缝"
+                case "3":
+                    item_type = "横状裂缝"
+        log.info(f"检测到裂缝类型为: {item_type}")
+
+    else:
+        log.warning("未检测到裂缝类型，无法进行分类")
+
+    cache_path = os.path.join(root_dir, "cache", "cache.json")
+    cache_file = {"crack_type": item_type}
+    # 判断文件是否存在
+    if not os.path.exists(cache_path):
+        # 如果文件不存在，则创建文件夹并创建文件
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(cache_file, ensure_ascii=False))
 
     new_images = []
     for file_path in image_files:

@@ -1,3 +1,4 @@
+
 import math
 import random
 
@@ -5,6 +6,8 @@ import cv2
 import numpy as np
 from scipy import ndimage
 from skimage.morphology import skeletonize
+
+import Calculate as Ca
 import Logger as Log
 
 log = Log.HandleLog()
@@ -134,7 +137,7 @@ def max_circle(binarization_image, img_original, high_precision):
     random_circle_list = []
     # 可能一张图片中存在多条裂缝，对每一条裂缝进行循环计算
     max_len = max(len(c) for c in contous)
-    log.info(f"裂缝最大长度为: {max_len}")
+    log.info(f"裂缝最大面积为: {max_len}")
 
     finally_average_width_list = []
 
@@ -270,6 +273,11 @@ def max_circle(binarization_image, img_original, high_precision):
                     (0, 255, 255),
                     2,
                 )
+
+    random_wide_list = [round(wide/Ca.pre, 4) for wide in random_wide_list]
+    secondary_wide_list = list(filter(lambda x: x!= 0, [round(wide/Ca.pre, 4) for wide in secondary_wide_list]))
+    max_wide_list = [round(wide/Ca.pre, 4) for wide in max_wide_list]
+    finally_average_width_list = [round(wide/Ca.pre, 4) for wide in finally_average_width_list]
 
     all_data_list = [
         random_wide_list,

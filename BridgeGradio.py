@@ -17,6 +17,7 @@ import ImageView as Iv
 import IncircleWide as Iw
 import Logger as Log
 import Reasoning as Re
+import Calculate as Ca
 
 
 def SVD(points):
@@ -327,12 +328,17 @@ if __name__ == "__main__":
         _, args = Ga.allArgs()
 
         # Blocks特有组件，设置所有子组件按水平排列
+        with gr.Tab("相机标定"):
+            # 相机标定组件
+            Ca.calculate(args)
+
         with gr.Tab("推理"):
             # 推理组件
             Re.reasoning(args, model_input)
 
         with gr.Tab("自监控模式"):
             # 自监控组件
+            # Ca.calculate(args)
             Ac.autoCheck(args)
 
         with gr.Tab("图库浏览器"):

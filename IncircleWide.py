@@ -114,6 +114,8 @@ def on_select_img(gallery_list_now, event_data: gr.SelectData):
         width_data["avg_width"],
         width_data["other_width"],
         finish_data[0:5],
+        width_data["crack_type"],
+        width_data["proportion"],
     )
 
 
@@ -256,8 +258,12 @@ def inCircleWide():
                     delete_wide = gr.Button("删除", visible=False)
 
             with gr.Column():
-                max_width = gr.Textbox(label="最大宽度")
-                avg_width = gr.Textbox(label="平均宽度")
+                with gr.Row():
+                    max_width = gr.Textbox(label="最大宽度")
+                    avg_width = gr.Textbox(label="平均宽度")
+                with gr.Row():
+                    crack_type =  gr.Textbox(label="裂缝类型")
+                    crack_area = gr.Textbox(label="裂缝面积占比")
                 other_width = gr.Dataframe(
                     headers=["次要裂缝宽度"],
                     datatype=["number"],
@@ -304,7 +310,7 @@ def inCircleWide():
         wide_result_img.select(
             fn=on_select_img,
             inputs=[wide_result_img],
-            outputs=[delete_wide, max_width, avg_width, other_width, random_width],
+            outputs=[delete_wide, max_width, avg_width, other_width, random_width, crack_type, crack_area],
         )
 
         delete_wide.click(

@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 
@@ -60,7 +61,14 @@ def file_upload(_model_name, conf, img=None):
 
     new_images = Cf.copyFiles()
     log.info("推理完成")
-    return new_images
+
+    cache_path = os.path.join(root_dir, "cache", "cache.json")
+    with open(cache_path, "r", encoding="utf-8") as f:
+        cache = json.load(f)
+
+    Cf.write_area_json()
+
+    return new_images, cache["crack_type"]
 
 
 def SVD(points):
@@ -258,9 +266,10 @@ def get_finish_img(
         inverted_img = pro_img_list[4]
         log.info("检测到缓存，进行启用")
     else:
-        inverted_img = process_images(
+        inverted_img,_ = process_images(
             img, noise_size, threshold, offset, easy_mode_open, width_threshold
-        )[4]
+        )
+        inverted_img = inverted_img[4]
         log.info("未检测到缓存，进行计算")
 
     log.info(f"二值化图片大小: {inverted_img.shape}")
@@ -297,6 +306,8 @@ def get_finish_img(
     random_data = update_page("初始化")
 
     pro_img_list = []
+
+    Cf.write_area_json()
 
     return (
         [finish_img, skeleton_pixel],
@@ -387,7 +398,33 @@ def process_images(
             inverted_image,
         ]
 
-    return pro_img_list
+    proportion = count_area(binary_image)
+
+    return pro_img_list,proportion
+
+
+def count_area(img):
+    log.info(f"图片总像素大小：{ img.size }")
+    height,width = img.shape
+
+    # 计算二值化后的图片中有多少像素的值为255
+    num_white_pixels = np.count_nonzero(img == 255)
+    num_black_pixels = np.count_nonzero(img == 0)
+    log.info(f"图片中白色像素的数量：{ num_white_pixels }")
+    log.info(f"裂缝总面积：{ num_black_pixels } px")
+
+    proportion = round((num_black_pixels/img.size)*100,2)
+    log.info(f"裂缝占比: {proportion} %")
+
+    cache_area_path = os.path.join(root_dir, "cache", "cache_area.json")
+    cache_file = {"proportion": proportion}
+    # 判断文件是否存在
+    if not os.path.exists(cache_area_path):
+        # 如果文件不存在，则创建文件夹并创建文件
+        os.makedirs(os.path.dirname(cache_area_path), exist_ok=True)
+    with open(cache_area_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(cache_file, ensure_ascii=False))
+    return proportion
 
 
 def update_page(increase):
@@ -416,8 +453,10 @@ def update_page(increase):
     end = start + 5
     return finish_data[start:end]
 
+
 def consult_img(img):
-  pass
+    pass
+
 
 def reasoning(args, model_input):
     """
@@ -441,8 +480,10 @@ def reasoning(args, model_input):
             wide_gallery = gr.Gallery(label="裂缝宽度结果", columns=1, rows=1, preview=True)
         with gr.Accordion(label="裂缝宽度计算结果", open=False):
             with gr.Row():
+                crack_type = gr.Textbox(label="裂缝类型")
                 max_wide_label = gr.Textbox(label="最大宽度", value="0")
                 avg_wide_label = gr.Textbox(label="平均宽度", value="0")
+                proportion_label = gr.Textbox(label="裂缝占比(%)", value="0")
 
             with gr.Row():
                 second_label = gr.Dataframe(
@@ -471,13 +512,13 @@ def reasoning(args, model_input):
                 conf,
                 img_input,
             ],
-            outputs=[gallery],
+            outputs=[gallery, crack_type],
         )
 
         greet_btn.click(
             fn=process_images,
             inputs=[img_input, noise, threshold, offset, simple_line, wide],
-            outputs=[filtered_image],
+            outputs=[filtered_image,proportion_label],
         )
 
         greet_btn.click(
@@ -501,6 +542,7 @@ def reasoning(args, model_input):
         )
 
     return reasoningDemo
+
 
 # 初始化配置文件
 Cf.inspect_config_file()
