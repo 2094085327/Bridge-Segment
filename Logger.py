@@ -57,6 +57,8 @@ class HandleLog:
         Returns:
             日志级别
         """
+        if not os.path.exists("config.json"):
+            return logging.INFO
 
         with open("config.json", "r") as f:
             config = json.load(f)
