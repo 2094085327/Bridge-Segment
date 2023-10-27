@@ -132,7 +132,7 @@ def auto_generate():
 
         Cf.copyFiles()
 
-        pro_img_list = Re.process_images(
+        pro_img_list,_ = Re.process_images(
             img, auto_noise, auto_threshold, auto_offset, auto_simple_line, auto_wide
         )
         log.info("预处理完成")

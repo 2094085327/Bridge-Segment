@@ -17,6 +17,7 @@ import Logger as Log
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result")
+models_path = os.path.join(root_dir, "models")
 log = Log.HandleLog()
 
 
@@ -422,7 +423,7 @@ def check_logrank(log_rank):
             return "严重错误"
 
 
-def save_config(cache_clean, _length, _width, _loginfo):
+def save_config(cache_clean, _length, _width, _loginfo,_model_name):
     """
     保存配置
     Args:
@@ -440,6 +441,9 @@ def save_config(cache_clean, _length, _width, _loginfo):
     config["calculate"]["length"] = _length
     config["calculate"]["width"] = _width
     config["logging"]["level"] = check_log_info(_loginfo)
+    load_path = os.path.join(models_path, _model_name)
+    config["models"] = {"path": load_path, "name": _model_name}
+
     try:
         with open("config.json", "w") as f:
             f.write(json.dumps(config))
@@ -484,13 +488,14 @@ def restart_server():
     subprocess.call(bat_path, shell=True)
 
 
-def globalConfig():
+def globalConfig(args):
     """
     全局配置
     Returns:
         configDemo: 配置界面
     """
     config = read_config_file()
+    model_input = args
     with gr.Blocks() as configDemo:
         with gr.Row():
             save = gr.Button("保存配置")
@@ -525,6 +530,6 @@ def globalConfig():
                 )
                 gr.Text(show_label=False, value="mm", interactive=False)
 
-    save.click(fn=save_config, inputs=[cache_clean, length, width, loginfo])
+    save.click(fn=save_config, inputs=[cache_clean, length, width, loginfo,model_input])
     restart.click(fn=restart_server)
     return configDemo

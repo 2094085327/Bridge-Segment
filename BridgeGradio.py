@@ -347,7 +347,7 @@ if __name__ == "__main__":
 
         with gr.Tab("设置"):
             # 宽度计算组件
-            Cf.globalConfig()
+            Cf.globalConfig(model_input)
 
     Cf.system_check()
     config = Cf.read_config_file()
