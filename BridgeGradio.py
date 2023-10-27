@@ -356,4 +356,5 @@ if __name__ == "__main__":
     Cf.has_public_ip(port)
     log = Log.HandleLog()
     log.info(f"启用的日志等级: {log_rank}")
+    Cf.remove_cache()
     demo.launch(server_name=config["database"]["host"], server_port=port)

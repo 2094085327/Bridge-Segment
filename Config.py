@@ -7,7 +7,7 @@ import shutil
 import socket
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import gradio as gr
 from PIL import Image
@@ -35,7 +35,14 @@ def inspect_config_file():
                 "password": "password",
             },
             "logging": {"level": "INFO", "file": "app.log"},
-            "cache": {"open": False, "path": "cache", "days": 7},
+            "cache": {
+                "open": False,
+                "path": "cache",
+                "days": 7,
+                "inCircle": False,
+                "yolo": False,
+                "log": False,
+            },
             "calculate": {"length": 0, "width": 0},
         }
         with open("config.json", "w") as f:
@@ -401,7 +408,7 @@ def check_log_info(log_rank):
             return "CRITICAL"
 
 
-def check_logrank(log_rank):
+def check_log_rank(log_rank):
     """
     转换日志等级
     Args:
@@ -423,14 +430,29 @@ def check_logrank(log_rank):
             return "严重错误"
 
 
-def save_config(cache_clean, _length, _width, _loginfo,_model_name):
+def save_config(
+    cache_clean,
+    _length,
+    _width,
+    _log_info,
+    _model_name,
+    circle_clean,
+    yolo_clean,
+    log_clean,
+    cache_time,
+):
     """
     保存配置
     Args:
         cache_clean: 是否自动清理缓存
         _length: 参照物长度
         _width: 参照物宽度
-        _loginfo: 日志等级
+        _log_info: 日志等级
+        _model_name: 模型名称
+        circle_clean: 是否清理宽度计算结果
+        yolo_clean: 是否清理识别结果
+        log_clean: 是否清理日志文件
+        cache_time: 缓存天数
 
     Returns:
         None
@@ -438,9 +460,13 @@ def save_config(cache_clean, _length, _width, _loginfo,_model_name):
     with open("config.json", "r") as f:
         config = json.load(f)
     config["cache"]["open"] = cache_clean
+    config["cache"]["inCircle"] = circle_clean
+    config["cache"]["yolo"] = yolo_clean
+    config["cache"]["log"] = log_clean
+    config["cache"]["days"] = cache_time
     config["calculate"]["length"] = _length
     config["calculate"]["width"] = _width
-    config["logging"]["level"] = check_log_info(_loginfo)
+    config["logging"]["level"] = check_log_info(_log_info)
     load_path = os.path.join(models_path, _model_name)
     config["models"] = {"path": load_path, "name": _model_name}
 
@@ -488,6 +514,58 @@ def restart_server():
     subprocess.call(bat_path, shell=True)
 
 
+def remove_file(file_path, days_ago):
+    """
+    删除文件
+    Args:
+        file_path: 文件路径
+        days_ago: 天数
+
+    Returns:
+
+    """
+    for filename in os.listdir(file_path):
+        # 获取文件的修改时间
+        file_path = os.path.join(file_path, filename)
+        modification_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+
+        # 如果文件的修改时间早于7天前，则删除文件
+        if modification_time < days_ago:
+            os.remove(file_path)
+
+
+def remove_cache():
+    """
+    清理缓存文件
+    Returns:
+        None
+    """
+    config = read_config_file()
+    # 设置配置的时间戳
+    days_ago = datetime.now() - timedelta(days=config["cache"]["days"])
+
+    if config["cache"]["open"]:
+        if config["cache"]["inCircle"]:
+            # 遍历指定文件夹下的所有文件
+            log.info("正在清理宽度计算结果文件...")
+            folder_path = os.path.join(result_path, "inCircle")
+            remove_file(folder_path, days_ago)
+            log.info("宽度计算结果清理完毕")
+        if config["cache"]["yolo"]:
+            log.info("正在清理识别结果...")
+            folder_path = os.path.join(result_path, "yolo")
+            remove_file(folder_path, days_ago)
+            log.info("识别结果清理完毕")
+
+        if config["cache"]["log"]:
+            log.info("正在清理日志缓存...")
+            folder_path = os.path.join(root_dir, "cache")
+            remove_file(folder_path, days_ago)
+            log.info("日志缓存清理完毕")
+
+    log.info("缓存文件清理完毕")
+
+
 def globalConfig(args):
     """
     全局配置
@@ -502,15 +580,23 @@ def globalConfig(args):
             restart = gr.Button("重启服务")
 
         with gr.Column():
-            cache_clean = gr.Checkbox(label="自动清理缓存文件", value=config["cache"]["open"])
-            getPageNum = gr.Number(
+            with gr.Row():
+                cache_clean = gr.Checkbox(
+                    label="自动清理缓存文件", value=config["cache"]["open"]
+                )
+                inCircle_clean = gr.Checkbox(
+                    label="清理宽度计算结果", value=config["cache"]["inCircle"]
+                )
+                yolo_clean = gr.Checkbox(label="清理识别结果", value=config["cache"]["yolo"])
+                log_clean = gr.Checkbox(label="清理日志文件", value=config["cache"]["log"])
+            cache_time = gr.Number(
                 label="缓存天数", interactive=True, value=config["cache"]["days"]
             )
 
-            loginfo = gr.Dropdown(
+            log_info = gr.Dropdown(
                 ["调试", "信息", "警告", "错误", "严重错误"],
                 label="日志等级",
-                value=check_logrank(config["logging"]["level"]),
+                value=check_log_rank(config["logging"]["level"]),
             )
             with gr.Row():
                 gr.Text(show_label=False, value="参照物长度", interactive=False)
@@ -530,6 +616,19 @@ def globalConfig(args):
                 )
                 gr.Text(show_label=False, value="mm", interactive=False)
 
-    save.click(fn=save_config, inputs=[cache_clean, length, width, loginfo,model_input])
+    save.click(
+        fn=save_config,
+        inputs=[
+            cache_clean,
+            length,
+            width,
+            log_info,
+            model_input,
+            inCircle_clean,
+            yolo_clean,
+            log_clean,
+            cache_time,
+        ],
+    )
     restart.click(fn=restart_server)
     return configDemo
