@@ -338,7 +338,6 @@ if __name__ == "__main__":
 
         with gr.Tab("自监控模式"):
             # 自监控组件
-            # Ca.calculate(args)
             Ac.autoCheck(args)
 
         with gr.Tab("图库浏览器"):
@@ -357,4 +356,8 @@ if __name__ == "__main__":
     log = Log.HandleLog()
     log.info(f"启用的日志等级: {log_rank}")
     Cf.remove_cache()
-    demo.launch(server_name=config["database"]["host"], server_port=port)
+    try:
+        demo.launch(server_name=config["database"]["host"], server_port=port)
+
+    except Exception as e:
+        log.error("启动失败,请检查端口是否被占用")

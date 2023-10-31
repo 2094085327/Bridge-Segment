@@ -524,14 +524,21 @@ def remove_file(file_path, days_ago):
     Returns:
 
     """
+    file_path = file_path
     for filename in os.listdir(file_path):
-        # 获取文件的修改时间
-        file_path = os.path.join(file_path, filename)
-        modification_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+        full_file_path = os.path.join(file_path, filename)  # 创建新的变量来存储完整的文件路径
 
-        # 如果文件的修改时间早于7天前，则删除文件
+        # 获取文件的修改时间
+        modification_time = datetime.fromtimestamp(os.path.getmtime(full_file_path))
+
+        # 如果文件的修改时间早于设置天数前，则删除文件
         if modification_time < days_ago:
-            os.remove(file_path)
+            try:
+                os.remove(full_file_path)
+
+            except OSError as e:
+                log.error(f"删除文件失败: {str(e)}")
+                continue
 
 
 def remove_cache():
